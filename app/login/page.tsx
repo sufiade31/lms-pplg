@@ -16,12 +16,16 @@ export default function LoginPage() {
     const emailVal = email.trim().toLowerCase();
     const passVal = password.trim();
 
+   
     if (emailVal === 'admin' && passVal === 'admin123') {
       router.push('/admin');
     } else if (emailVal === 'upil' && passVal === '123') {
       router.push('/siswa');
-    }  else if (emailVal === 'budiono' && passVal === '123') {
+    } else if (emailVal === 'budiono' && passVal === '123') {
       router.push('/guru');
+    } else if (emailVal === 'kepsek' && passVal === '123') {
+      router.push('/kepsek');
+    } else {
       setError('Email atau password salah.');
     }
   }
