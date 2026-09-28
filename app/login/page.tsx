@@ -9,14 +9,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
 
     const emailVal = email.trim().toLowerCase();
     const passVal = password.trim();
 
-   
     if (emailVal === 'admin' && passVal === 'admin123') {
       router.push('/admin');
     } else if (emailVal === 'upil' && passVal === '123') {
@@ -25,11 +24,13 @@ export default function LoginPage() {
       router.push('/guru');
     } else if (emailVal === 'kepsek' && passVal === '123') {
       router.push('/kepsek');
+    } else if (emailVal === 'kurikulum' && passVal === '123') {
+      router.push('/kurikulum');
     } else {
       setError('Email atau password salah.');
     }
   }
-
+  
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F3F8F6] px-4 py-8">
       <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl md:grid-cols-2">
