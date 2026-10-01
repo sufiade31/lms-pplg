@@ -16,7 +16,7 @@ export default function LoginPage() {
     const emailVal = email.trim().toLowerCase();
     const passVal = password.trim();
 
-    if (emailVal === 'admin' && passVal === 'admin123') {
+    if (emailVal === 'admin' && passVal === '123') {
       router.push('/admin');
     } else if (emailVal === 'upil' && passVal === '123') {
       router.push('/siswa');

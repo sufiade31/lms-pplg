@@ -6,3 +6,10 @@ export async function GET() {
   const users = await User.find();
   return Response.json(users);
 }
+
+export async function POST(request) {
+  await connectDB();
+  const body = await request.json();
+  const user = await User.create(body);
+  return Response.json(user, { status: 201 });
+}

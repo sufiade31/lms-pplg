@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema(
   {
@@ -7,15 +7,11 @@ const UserSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ["admin", "guru", "siswa", "kepsek_kurikulum"],
-      required: true,
+      enum: ['admin', 'guru', 'kepsek', 'kurikulum', 'siswa'],
+      default: 'siswa',
     },
-    kelas: { type: mongoose.Schema.Types.ObjectId, ref: "Kelas" },
-    nis: { type: String },
-    mapelDiajar: [{ type: mongoose.Schema.Types.ObjectId, ref: "MataPelajaran" }],
-    nip: { type: String },
   },
   { timestamps: true }
 );
 
-export default mongoose.models.User || mongoose.model("User", UserSchema, "user");
+export default mongoose.models.User || mongoose.model('User', UserSchema);

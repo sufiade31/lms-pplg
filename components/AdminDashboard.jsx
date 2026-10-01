@@ -1,9 +1,8 @@
-
 'use client';
- 
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
- 
+
 const INITIAL_GURU = [
   { id: 1, nama: 'Siti Nurhaliza', nip: '198203122010012001', mapel: 'Matematika', kontak: '0812-3456-7890', status: 'Aktif' },
   { id: 2, nama: 'Budi Santoso', nip: '197911052008011003', mapel: 'Bahasa Indonesia', kontak: '0813-2233-4455', status: 'Aktif' },
@@ -37,16 +36,16 @@ const INITIAL_PENGUMUMAN = [
   { id: 2, judul: 'Jadwal Penilaian Tengah Semester', tanggal: '28 Agu 2026', target: 'Siswa saja', status: 'Terbit', isi: 'PTS akan dilaksanakan mulai 21 September 2026. Jadwal lengkap dapat dilihat di papan pengumuman kelas masing-masing.' },
   { id: 3, judul: 'Rapat Koordinasi Wali Kelas', tanggal: '25 Agu 2026', target: 'Guru saja', status: 'Draf', isi: 'Rapat koordinasi seluruh wali kelas akan diadakan di ruang guru. Agenda: persiapan PTS dan evaluasi semester.' },
 ];
- 
+
 const MENU_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', title: 'Dashboard', sub: 'Ringkasan aktivitas hari ini' },
+  { key: 'dashboard', label: 'Beranda', title: 'Beranda', sub: 'Ringkasan aktivitas hari ini' },
   { key: 'guru', label: 'Guru', title: 'Guru', sub: 'Kelola data guru' },
   { key: 'siswa', label: 'Siswa', title: 'Siswa', sub: 'Kelola data siswa' },
   { key: 'kelas', label: 'Kelas', title: 'Kelas', sub: 'Kelola data kelas' },
   { key: 'mapel', label: 'Mata pelajaran', title: 'Mata pelajaran', sub: 'Lihat guru pengampu tiap mata pelajaran' },
   { key: 'pengumuman', label: 'Pengumuman', title: 'Pengumuman', sub: 'Kelola pengumuman sekolah' },
 ];
- 
+
 const FORM_CONFIG = {
   guru: {
     titleAdd: 'Tambah guru baru', titleEdit: 'Edit data guru', sub: 'Perubahan langsung terlihat di daftar guru.',
@@ -78,47 +77,82 @@ const FORM_CONFIG = {
     ],
   },
 };
- 
+
 function initials(nama) {
   return nama.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 }
- 
+
 function Pill({ status }) {
   const map = { Aktif: 'pill-tosca', Cuti: 'pill-amber', Pindah: 'pill-coral', Terbit: 'pill-tosca', Draf: 'pill-amber' };
   return <span className={`pill ${map[status] || 'pill-tosca'}`}>{status}</span>;
 }
- 
+
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
- 
+
   const [guruData, setGuruData] = useState(INITIAL_GURU);
   const [siswaData, setSiswaData] = useState(INITIAL_SISWA);
   const [kelasData, setKelasData] = useState(INITIAL_KELAS);
   const [pengumumanData, setPengumumanData] = useState(INITIAL_PENGUMUMAN);
   const nextId = { current: { guru: 6, siswa: 6, kelas: 5, pengumuman: 4 } };
- 
+
   const [modal, setModal] = useState({ open: false, type: null, id: null, values: {}, error: '' });
   const [confirmDelete, setConfirmDelete] = useState({ open: false, type: null, id: null });
   const [profileOpen, setProfileOpen] = useState(false);
- 
+
   const [announceOpen, setAnnounceOpen] = useState(false);
   const [announceForm, setAnnounceForm] = useState({ judul: '', isi: '', target: 'Semua', status: 'Draf' });
   const [announceError, setAnnounceError] = useState(false);
- 
+
   const dataMap = {
     guru: [guruData, setGuruData],
     siswa: [siswaData, setSiswaData],
     kelas: [kelasData, setKelasData],
   };
- 
+
   const menuInfo = MENU_ITEMS.find((m) => m.key === activeSection);
- 
+
+  const q = searchQuery.trim().toLowerCase();
+  const match = (...fields) => fields.some((f) => String(f ?? '').toLowerCase().includes(q));
+  const filteredGuru = q ? guruData.filter((g) => match(g.nama, g.nip, g.mapel, g.kontak, g.status)) : guruData;
+  const filteredSiswa = q ? siswaData.filter((s) => match(s.nama, s.nis, s.kelas, s.gender, s.status)) : siswaData;
+  const filteredKelas = q ? kelasData.filter((k) => match(k.nama, k.wali, k.tingkat, k.jumlah)) : kelasData;
+  const filteredMapel = q ? MAPEL_DATA.filter((m) => match(m.nama, m.kode, ...m.guru)) : MAPEL_DATA;
+  const filteredPengumuman = q ? pengumumanData.filter((p) => match(p.judul, p.isi, p.target, p.status, p.tanggal)) : pengumumanData;
+
+  const searchPlaceholders = {
+    dashboard: 'Pilih menu untuk mencari',
+    guru: 'Cari nama, NIP, mapel...',
+    siswa: 'Cari nama, NIS, kelas...',
+    kelas: 'Cari kelas atau wali kelas...',
+    mapel: 'Cari mapel atau guru...',
+    pengumuman: 'Cari judul atau isi...',
+  };
+
+  function EmptyRow({ cols }) {
+    return (
+      <tr>
+        <td colSpan={cols} style={{ textAlign: 'center', padding: '28px 18px', color: 'var(--ink-soft)' }}>
+          Data tidak ditemukan{q ? ` untuk "${searchQuery.trim()}"` : ''}.
+        </td>
+      </tr>
+    );
+  }
+
+  function defaultValues(type) {
+    const defaults = {};
+    FORM_CONFIG[type].fields.forEach((f) => {
+      if (f.type === 'select') defaults[f.key] = f.options[0];
+    });
+    return defaults;
+  }
   function openAddModal(type) {
-    setModal({ open: true, type, id: null, values: {}, error: '' });
+    setModal({ open: true, type, id: null, values: defaultValues(type), error: '' });
   }
   function openEditModal(type, record) {
-    setModal({ open: true, type, id: record.id, values: { ...record }, error: '' });
+    setModal({ open: true, type, id: record.id, values: { ...defaultValues(type), ...record }, error: '' });
   }
   function closeModal() {
     setModal({ open: false, type: null, id: null, values: {}, error: '' });
@@ -144,7 +178,7 @@ export default function AdminDashboard() {
     }
     closeModal();
   }
- 
+
   function askDelete(type, id) {
     setConfirmDelete({ open: true, type, id });
   }
@@ -154,7 +188,7 @@ export default function AdminDashboard() {
     setData((prev) => prev.filter((r) => r.id !== id));
     setConfirmDelete({ open: false, type: null, id: null });
   }
- 
+
   function publishAnnouncement() {
     if (!announceForm.judul.trim() || !announceForm.isi.trim()) {
       setAnnounceError(true);
@@ -166,7 +200,7 @@ export default function AdminDashboard() {
     setAnnounceError(false);
     setAnnounceOpen(false);
   }
- 
+
   function AnnounceCard({ p }) {
     return (
       <div className="announce-card">
@@ -181,11 +215,11 @@ export default function AdminDashboard() {
       </div>
     );
   }
- 
+
   return (
     <div className="app">
       <style jsx global>{styles}</style>
- 
+
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -196,21 +230,21 @@ export default function AdminDashboard() {
             <div className="brand-sub">Admin</div>
           </div>
         </div>
- 
+
         <nav className="menu">
           {MENU_ITEMS.map((item) => (
             <button
               key={item.key}
               className={`nav-item${activeSection === item.key ? ' active' : ''}`}
-              onClick={() => setActiveSection(item.key)}
+              onClick={() => { setActiveSection(item.key); setSearchQuery(''); }}
             >
               <span className="label">{item.label}</span>
             </button>
           ))}
- 
+
           <div className="nav-spacer" />
           <div className="nav-divider" />
- 
+
           <button className="nav-item nav-item-danger" onClick={() => router.push('/login')}>
             <span className="ic">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -222,7 +256,7 @@ export default function AdminDashboard() {
             <span className="label">Keluar</span>
           </button>
         </nav>
- 
+
         <div className="admin-mini" onClick={() => setProfileOpen(true)} role="button" tabIndex={0}>
           <div className="avatar-sm">AD</div>
           <div>
@@ -231,7 +265,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       </aside>
- 
+
       <div className="main">
         <div className="topbar">
           <div>
@@ -240,13 +274,19 @@ export default function AdminDashboard() {
           </div>
           <div className="topbar-right">
             <div className="search-box">
-              <input type="text" placeholder="Cari data..." />
+              <input
+                type="text"
+                placeholder={searchPlaceholders[activeSection]}
+                disabled={activeSection === 'dashboard'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
         </div>
- 
+
         <div className="content">
- 
+
           {activeSection === 'dashboard' && (
             <section>
               <div className="stats-row">
@@ -267,7 +307,7 @@ export default function AdminDashboard() {
                   <div className="stat-value">{MAPEL_DATA.length}</div>
                 </div>
               </div>
- 
+
               <div className="panel">
                 <div className="panel-head">
                   <div>
@@ -284,20 +324,21 @@ export default function AdminDashboard() {
               </div>
             </section>
           )}
- 
+
           {activeSection === 'guru' && (
             <section className="panel">
               <div className="panel-head">
                 <div>
                   <h2>Daftar guru</h2>
-                  <p>{guruData.length} guru terdaftar</p>
+                  <p>{q ? `${filteredGuru.length} dari ${guruData.length} guru` : `${guruData.length} guru terdaftar`}</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('guru')}>+ Tambah guru</button>
               </div>
               <table>
                 <thead><tr><th>Nama</th><th>NIP</th><th>Mata pelajaran</th><th>Kontak</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {guruData.map((g) => (
+                  {filteredGuru.length === 0 && <EmptyRow cols={6} />}
+                  {filteredGuru.map((g) => (
                     <tr key={g.id}>
                       <td>
                         <div className="name-cell">
@@ -324,20 +365,21 @@ export default function AdminDashboard() {
               </table>
             </section>
           )}
- 
+
           {activeSection === 'siswa' && (
             <section className="panel">
               <div className="panel-head">
                 <div>
                   <h2>Daftar siswa</h2>
-                  <p>{siswaData.length} siswa terdaftar</p>
+                  <p>{q ? `${filteredSiswa.length} dari ${siswaData.length} siswa` : `${siswaData.length} siswa terdaftar`}</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('siswa')}>+ Tambah siswa</button>
               </div>
               <table>
                 <thead><tr><th>Nama</th><th>NIS</th><th>Kelas</th><th>Jenis kelamin</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {siswaData.map((s) => (
+                  {filteredSiswa.length === 0 && <EmptyRow cols={6} />}
+                  {filteredSiswa.map((s) => (
                     <tr key={s.id}>
                       <td>
                         <div className="name-cell">
@@ -364,20 +406,21 @@ export default function AdminDashboard() {
               </table>
             </section>
           )}
- 
+
           {activeSection === 'kelas' && (
             <section className="panel">
               <div className="panel-head">
                 <div>
                   <h2>Daftar kelas</h2>
-                  <p>{kelasData.length} kelas tahun ajaran 2026/2027</p>
+                  <p>{q ? `${filteredKelas.length} dari ${kelasData.length} kelas` : `${kelasData.length} kelas tahun ajaran 2026/2027`}</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('kelas')}>+ Tambah kelas</button>
               </div>
               <table>
                 <thead><tr><th>Nama kelas</th><th>Wali kelas</th><th>Jumlah siswa</th><th>Tingkat</th><th></th></tr></thead>
                 <tbody>
-                  {kelasData.map((k) => (
+                  {filteredKelas.length === 0 && <EmptyRow cols={5} />}
+                  {filteredKelas.map((k) => (
                     <tr key={k.id}>
                       <td className="name-primary">{k.nama}</td>
                       <td>{k.wali}</td>
@@ -395,7 +438,7 @@ export default function AdminDashboard() {
               </table>
             </section>
           )}
- 
+
           {activeSection === 'mapel' && (
             <section>
               <div className="panel" style={{ marginBottom: 14 }}>
@@ -407,7 +450,10 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="mapel-grid">
-                {MAPEL_DATA.map((m) => (
+                {filteredMapel.length === 0 && (
+                  <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Data tidak ditemukan untuk "{searchQuery.trim()}".</p>
+                )}
+                {filteredMapel.map((m) => (
                   <div className="mapel-card" key={m.kode}>
                     <h3>{m.nama}</h3>
                     <div className="kode">Kode: {m.kode}</div>
@@ -424,7 +470,7 @@ export default function AdminDashboard() {
               </div>
             </section>
           )}
- 
+
           {activeSection === 'pengumuman' && (
             <section>
               <div className="panel-head" style={{ border: 'none', padding: '0 0 14px' }}>
@@ -434,7 +480,7 @@ export default function AdminDashboard() {
                 </div>
                 <button className="btn btn-primary" onClick={() => setAnnounceOpen((v) => !v)}>+ Buat pengumuman</button>
               </div>
- 
+
               {announceOpen && (
                 <div className="announce-form open">
                   <div className="field-row">
@@ -479,16 +525,19 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
- 
+
               <div className="announce-list">
-                {pengumumanData.map((p) => <AnnounceCard key={p.id} p={p} />)}
+                {filteredPengumuman.length === 0 && (
+                  <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Data tidak ditemukan untuk "{searchQuery.trim()}".</p>
+                )}
+                {filteredPengumuman.map((p) => <AnnounceCard key={p.id} p={p} />)}
               </div>
             </section>
           )}
- 
+
         </div>
       </div>
- 
+
       {modal.open && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && closeModal()}>
           <div className="modal">
@@ -521,7 +570,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
- 
+
       {confirmDelete.open && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setConfirmDelete({ open: false, type: null, id: null })}>
           <div className="modal" style={{ width: 340 }}>
@@ -534,7 +583,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
- 
+
       {profileOpen && (
         <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setProfileOpen(false)}>
           <div className="modal" style={{ width: 340, textAlign: 'center' }}>
@@ -564,7 +613,7 @@ export default function AdminDashboard() {
     </div>
   );
 }
- 
+
 const styles = `
 :root{
   --bg:#F3F8F6; --surface:#FFFFFF;
