@@ -9,28 +9,42 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-   function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
 
-    const emailVal = email.trim().toLowerCase();
+    const identifier = email.trim();
     const passVal = password.trim();
 
-    if (emailVal === 'admin' && passVal === '123') {
-      router.push('/admin');
-    } else if (emailVal === 'upil' && passVal === '123') {
-      router.push('/siswa');
-    } else if (emailVal === 'budiono' && passVal === '123') {
-      router.push('/guru');
-    } else if (emailVal === 'kepsek' && passVal === '123') {
-      router.push('/kepsek');
-    } else if (emailVal === 'kurikulum' && passVal === '123') {
-      router.push('/kurikulum');
-    } else {
-      setError('Email atau password salah.');
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password: passVal }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || 'Email atau password salah.');
+        return;
+      }
+
+      // Redirect otomatis sesuai role dari database
+      const roleRoutes: Record<string, string> = {
+        admin: '/admin',
+        siswa: '/siswa',
+        guru: '/guru',
+        kepsek: '/kepsek',
+        kurikulum: '/kurikulum',
+      };
+
+      router.push(roleRoutes[data.user.role] || '/login');
+    } catch {
+      setError('Gagal terhubung ke server.');
     }
   }
-  
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F3F8F6] px-4 py-8">
       <div className="grid w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl md:grid-cols-2">
