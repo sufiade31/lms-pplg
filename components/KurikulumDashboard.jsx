@@ -311,18 +311,45 @@ export default function KurikulumDashboard() {
         </div>
       )}
 
+
       {confirmLogout && (
-        <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setConfirmLogout(false)}>
+        <div
+          className="modal-overlay open"
+          onClick={(e) =>
+            e.target === e.currentTarget && setConfirmLogout(false)
+          }
+        >
           <div className="modal small">
             <h3>Keluar dari akun?</h3>
-            <p className="sub">Kamu akan diarahkan kembali ke halaman login.</p>
+            <p className="sub">
+              Kamu akan diarahkan kembali ke halaman login.
+            </p>
             <div className="form-actions">
-              <button className="btn" onClick={() => setConfirmLogout(false)}>Batal</button>
-              <button className="btn btn-primary" style={{ background: 'var(--coral)', borderColor: 'var(--coral)' }} onClick={() => router.push('/login')}>Ya, keluar</button>
+              <button
+                className="btn"
+                onClick={() => setConfirmLogout(false)}
+              >
+                Batal
+              </button>
+
+              <button
+                className="btn btn-primary"
+                style={{
+                  background: 'var(--coral)',
+                  borderColor: 'var(--coral)',
+                }}
+                onClick={() => {
+                  localStorage.removeItem("user");
+                  window.location.href = "/login";
+                }}
+              >
+                Ya, keluar
+              </button>
             </div>
           </div>
         </div>
       )}
+
 
       {toast && <div className="toast show">{toast}</div>}
     </div>

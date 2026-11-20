@@ -1,5 +1,5 @@
 import StudentDashboard from '@/components/StudentDashboard';
 
-export default function SiswaPage() {
+export default function MuridPage() {
   return <StudentDashboard />;
 }

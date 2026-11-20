@@ -1,4 +1,5 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const UserSchema = new mongoose.Schema(
   {
@@ -7,11 +8,22 @@ const UserSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ['admin', 'guru', 'kepsek', 'kurikulum', 'siswa'],
-      default: 'siswa',
+      enum: ["admin", "guru", "kepsek", "kurikulum", "siswa"],
+      default: "siswa",
     },
   },
   { timestamps: true }
 );
 
-export default mongoose.models.User || mongoose.model('User', UserSchema);
+// Auto-hash password sebelum save
+UserSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
+  this.password = await bcrypt.hash(this.password, 10);
+});
+
+// Method buat ngecek password pas login
+UserSchema.methods.matchPassword = function (passwordInput) {
+  return bcrypt.compare(passwordInput, this.password);
+};
+
+export default mongoose.models.User || mongoose.model("User", UserSchema);

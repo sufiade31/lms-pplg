@@ -32,7 +32,7 @@ loadEnv();
 const DEFAULT_PASSWORD = "123"; // ← password default semua murid
 
 const DAFTAR_MURID = [
-  { nama: "upil",         email: "upilya@smkcitranegara.sch.id" },
+  { nama: "upil",         email: "upil@smkcitranegara.sch.id" },
   { nama: "arya",    email: "arya syahgifari@smkcitranegara.sch.id" },
   { nama: "Siti Rahma",     email: "" },   // email dikosongin = dibikin otomatis
   { nama: "Budi Santoso",   email: "" },

@@ -1,28 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const INITIAL_GURU = [
-  { id: 1, nama: 'Siti Nurhaliza', nip: '198203122010012001', mapel: 'Matematika', kontak: '0812-3456-7890', status: 'Aktif' },
-  { id: 2, nama: 'Budi Santoso', nip: '197911052008011003', mapel: 'Bahasa Indonesia', kontak: '0813-2233-4455', status: 'Aktif' },
-  { id: 3, nama: 'Rina Amelia', nip: '198507192011012004', mapel: 'Fisika', kontak: '0857-1122-3344', status: 'Aktif' },
-  { id: 4, nama: 'Ahmad Fauzan', nip: '198001012006041002', mapel: 'Pemrograman Web', kontak: '0821-9988-7766', status: 'Cuti' },
-  { id: 5, nama: 'Dewi Lestari', nip: '199002142015022001', mapel: 'Bahasa Inggris', kontak: '0895-4433-2211', status: 'Aktif' },
-];
-const INITIAL_SISWA = [
-  { id: 1, nama: 'Muhammad Rizky', nis: '2425001', kelas: 'XII RPL 1', gender: 'Laki-laki', status: 'Aktif' },
-  { id: 2, nama: 'Anisa Putri', nis: '2425002', kelas: 'XII RPL 1', gender: 'Perempuan', status: 'Aktif' },
-  { id: 3, nama: 'Fajar Nugroho', nis: '2425034', kelas: 'XI TKJ 2', gender: 'Laki-laki', status: 'Aktif' },
-  { id: 4, nama: 'Salsabila Zahra', nis: '2425058', kelas: 'X DKV 1', gender: 'Perempuan', status: 'Aktif' },
-  { id: 5, nama: 'Dimas Prasetyo', nis: '2425071', kelas: 'XI TKJ 2', gender: 'Laki-laki', status: 'Pindah' },
-];
-const INITIAL_KELAS = [
-  { id: 1, nama: 'XII RPL 1', wali: 'Siti Nurhaliza', jumlah: 32, tingkat: 'XII' },
-  { id: 2, nama: 'XI TKJ 2', wali: 'Budi Santoso', jumlah: 30, tingkat: 'XI' },
-  { id: 3, nama: 'X DKV 1', wali: 'Rina Amelia', jumlah: 28, tingkat: 'X' },
-  { id: 4, nama: 'XII RPL 2', wali: 'Ahmad Fauzan', jumlah: 31, tingkat: 'XII' },
-];
 const MAPEL_DATA = [
   { nama: 'Matematika', kode: 'MTK-01', guru: ['Siti Nurhaliza'] },
   { nama: 'Pemrograman Web', kode: 'PWB-03', guru: ['Ahmad Fauzan', 'Rina Amelia'] },
@@ -30,11 +10,6 @@ const MAPEL_DATA = [
   { nama: 'Bahasa Inggris', kode: 'BIG-01', guru: ['Dewi Lestari'] },
   { nama: 'Fisika', kode: 'FIS-02', guru: ['Rina Amelia'] },
   { nama: 'Basis Data', kode: 'BDT-02', guru: ['Ahmad Fauzan'] },
-];
-const INITIAL_PENGUMUMAN = [
-  { id: 1, judul: 'Libur Hari Raya', tanggal: '2 Sep 2026', target: 'Semua', status: 'Terbit', isi: 'Sekolah libur mulai tanggal 10 hingga 14 September 2026. Kegiatan belajar mengajar akan kembali normal pada 15 September 2026.' },
-  { id: 2, judul: 'Jadwal Penilaian Tengah Semester', tanggal: '28 Agu 2026', target: 'Siswa saja', status: 'Terbit', isi: 'PTS akan dilaksanakan mulai 21 September 2026. Jadwal lengkap dapat dilihat di papan pengumuman kelas masing-masing.' },
-  { id: 3, judul: 'Rapat Koordinasi Wali Kelas', tanggal: '25 Agu 2026', target: 'Guru saja', status: 'Draf', isi: 'Rapat koordinasi seluruh wali kelas akan diadakan di ruang guru. Agenda: persiapan PTS dan evaluasi semester.' },
 ];
 
 const MENU_ITEMS = [
@@ -79,7 +54,7 @@ const FORM_CONFIG = {
 };
 
 function initials(nama) {
-  return nama.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  return (nama || '').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 }
 
 function Pill({ status }) {
@@ -87,24 +62,52 @@ function Pill({ status }) {
   return <span className={`pill ${map[status] || 'pill-tosca'}`}>{status}</span>;
 }
 
+function AnnounceCard({ p }) {
+  return (
+    <div className="announce-card">
+      <div className="announce-top">
+        <div>
+          <div className="announce-title">{p.judul}</div>
+          <div className="announce-meta">{p.tanggal} · Target: {p.target}</div>
+        </div>
+        <Pill status={p.status} />
+      </div>
+      <div className="announce-body">{p.isi}</div>
+    </div>
+  );
+}
+
+// Helper kecil untuk memanggil API
+async function api(url, method = 'GET', body) {
+  const res = await fetch(url, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan pada server.');
+  return data;
+}
+
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const router = useRouter();
 
-  const [guruData, setGuruData] = useState(INITIAL_GURU);
-  const [siswaData, setSiswaData] = useState(INITIAL_SISWA);
-  const [kelasData, setKelasData] = useState(INITIAL_KELAS);
-  const [pengumumanData, setPengumumanData] = useState(INITIAL_PENGUMUMAN);
-  const nextId = { current: { guru: 6, siswa: 6, kelas: 5, pengumuman: 4 } };
+  const [guruData, setGuruData] = useState([]);
+  const [siswaData, setSiswaData] = useState([]);
+  const [kelasData, setKelasData] = useState([]);
+  const [pengumumanData, setPengumumanData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
-  const [modal, setModal] = useState({ open: false, type: null, id: null, values: {}, error: '' });
+  const [modal, setModal] = useState({ open: false, type: null, id: null, values: {}, error: '', saving: false });
   const [confirmDelete, setConfirmDelete] = useState({ open: false, type: null, id: null });
   const [profileOpen, setProfileOpen] = useState(false);
 
   const [announceOpen, setAnnounceOpen] = useState(false);
   const [announceForm, setAnnounceForm] = useState({ judul: '', isi: '', target: 'Semua', status: 'Draf' });
-  const [announceError, setAnnounceError] = useState(false);
+  const [announceError, setAnnounceError] = useState('');
 
   const dataMap = {
     guru: [guruData, setGuruData],
@@ -112,34 +115,32 @@ export default function AdminDashboard() {
     kelas: [kelasData, setKelasData],
   };
 
+  // Ambil semua data dari database saat halaman dibuka
+  useEffect(() => {
+    async function load() {
+      try {
+        const [g, s, k, p] = await Promise.all(
+          ['guru', 'siswa', 'kelas', 'pengumuman'].map((t) => api(`/api/${t}`))
+        );
+        setGuruData(g);
+        setSiswaData(s);
+        setKelasData(k);
+        setPengumumanData(p);
+      } catch (e) {
+        setLoadError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
   const menuInfo = MENU_ITEMS.find((m) => m.key === activeSection);
 
   const q = searchQuery.trim().toLowerCase();
-  const match = (...fields) => fields.some((f) => String(f ?? '').toLowerCase().includes(q));
-  const filteredGuru = q ? guruData.filter((g) => match(g.nama, g.nip, g.mapel, g.kontak, g.status)) : guruData;
-  const filteredSiswa = q ? siswaData.filter((s) => match(s.nama, s.nis, s.kelas, s.gender, s.status)) : siswaData;
-  const filteredKelas = q ? kelasData.filter((k) => match(k.nama, k.wali, k.tingkat, k.jumlah)) : kelasData;
-  const filteredMapel = q ? MAPEL_DATA.filter((m) => match(m.nama, m.kode, ...m.guru)) : MAPEL_DATA;
-  const filteredPengumuman = q ? pengumumanData.filter((p) => match(p.judul, p.isi, p.target, p.status, p.tanggal)) : pengumumanData;
-
-  const searchPlaceholders = {
-    dashboard: 'Pilih menu untuk mencari',
-    guru: 'Cari nama, NIP, mapel...',
-    siswa: 'Cari nama, NIS, kelas...',
-    kelas: 'Cari kelas atau wali kelas...',
-    mapel: 'Cari mapel atau guru...',
-    pengumuman: 'Cari judul atau isi...',
-  };
-
-  function EmptyRow({ cols }) {
-    return (
-      <tr>
-        <td colSpan={cols} style={{ textAlign: 'center', padding: '28px 18px', color: 'var(--ink-soft)' }}>
-          Data tidak ditemukan{q ? ` untuk "${searchQuery.trim()}"` : ''}.
-        </td>
-      </tr>
-    );
-  }
+  const filteredGuru = q ? guruData.filter((g) => g.nama.toLowerCase().includes(q) || g.nip.includes(q) || g.mapel.toLowerCase().includes(q)) : guruData;
+  const filteredSiswa = q ? siswaData.filter((s) => s.nama.toLowerCase().includes(q) || s.nis.includes(q) || s.kelas.toLowerCase().includes(q)) : siswaData;
+  const filteredKelas = q ? kelasData.filter((k) => k.nama.toLowerCase().includes(q) || k.wali.toLowerCase().includes(q)) : kelasData;
 
   function defaultValues(type) {
     const defaults = {};
@@ -149,18 +150,20 @@ export default function AdminDashboard() {
     return defaults;
   }
   function openAddModal(type) {
-    setModal({ open: true, type, id: null, values: defaultValues(type), error: '' });
+    setModal({ open: true, type, id: null, values: defaultValues(type), error: '', saving: false });
   }
   function openEditModal(type, record) {
-    setModal({ open: true, type, id: record.id, values: { ...defaultValues(type), ...record }, error: '' });
+    setModal({ open: true, type, id: record.id, values: { ...defaultValues(type), ...record }, error: '', saving: false });
   }
   function closeModal() {
-    setModal({ open: false, type: null, id: null, values: {}, error: '' });
+    setModal({ open: false, type: null, id: null, values: {}, error: '', saving: false });
   }
   function updateModalField(key, value) {
     setModal((m) => ({ ...m, values: { ...m.values, [key]: value } }));
   }
-  function saveModal() {
+
+  // Simpan (tambah / edit) -> kirim ke database
+  async function saveModal() {
     const cfg = FORM_CONFIG[modal.type];
     for (const f of cfg.fields) {
       const val = modal.values[f.key];
@@ -170,50 +173,53 @@ export default function AdminDashboard() {
       }
     }
     const [, setData] = dataMap[modal.type];
-    if (modal.id) {
-      setData((prev) => prev.map((r) => (r.id === modal.id ? { ...r, ...modal.values } : r)));
-    } else {
-      const id = nextId.current[modal.type]++;
-      setData((prev) => [...prev, { id, ...modal.values }]);
+    const isEdit = !!modal.id;
+    setModal((m) => ({ ...m, saving: true, error: '' }));
+    try {
+      const saved = await api(
+        isEdit ? `/api/${modal.type}/${modal.id}` : `/api/${modal.type}`,
+        isEdit ? 'PUT' : 'POST',
+        modal.values
+      );
+      setData((prev) => (isEdit ? prev.map((r) => (r.id === saved.id ? saved : r)) : [...prev, saved]));
+      closeModal();
+    } catch (e) {
+      setModal((m) => ({ ...m, saving: false, error: e.message }));
     }
-    closeModal();
   }
 
   function askDelete(type, id) {
     setConfirmDelete({ open: true, type, id });
   }
-  function confirmDeleteYes() {
+  async function confirmDeleteYes() {
     const { type, id } = confirmDelete;
     const [, setData] = dataMap[type];
-    setData((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await api(`/api/${type}/${id}`, 'DELETE');
+      setData((prev) => prev.filter((r) => r.id !== id));
+    } catch (e) {
+      alert(e.message);
+    }
     setConfirmDelete({ open: false, type: null, id: null });
   }
 
-  function publishAnnouncement() {
+  async function publishAnnouncement() {
     if (!announceForm.judul.trim() || !announceForm.isi.trim()) {
-      setAnnounceError(true);
+      setAnnounceError('Judul dan isi pengumuman wajib diisi.');
       return;
     }
-    const id = nextId.current.pengumuman++;
-    setPengumumanData((prev) => [{ id, tanggal: 'Baru saja', ...announceForm }, ...prev]);
-    setAnnounceForm({ judul: '', isi: '', target: 'Semua', status: 'Draf' });
-    setAnnounceError(false);
-    setAnnounceOpen(false);
-  }
-
-  function AnnounceCard({ p }) {
-    return (
-      <div className="announce-card">
-        <div className="announce-top">
-          <div>
-            <div className="announce-title">{p.judul}</div>
-            <div className="announce-meta">{p.tanggal} · Target: {p.target}</div>
-          </div>
-          <Pill status={p.status} />
-        </div>
-        <div className="announce-body">{p.isi}</div>
-      </div>
-    );
+    try {
+      const saved = await api('/api/pengumuman', 'POST', {
+        ...announceForm,
+        tanggal: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+      });
+      setPengumumanData((prev) => [saved, ...prev]);
+      setAnnounceForm({ judul: '', isi: '', target: 'Semua', status: 'Draf' });
+      setAnnounceError('');
+      setAnnounceOpen(false);
+    } catch (e) {
+      setAnnounceError(e.message);
+    }
   }
 
   return (
@@ -276,8 +282,7 @@ export default function AdminDashboard() {
             <div className="search-box">
               <input
                 type="text"
-                placeholder={searchPlaceholders[activeSection]}
-                disabled={activeSection === 'dashboard'}
+                placeholder="Cari data..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -286,6 +291,13 @@ export default function AdminDashboard() {
         </div>
 
         <div className="content">
+
+          {loadError && (
+            <div className="error-banner">
+              Gagal mengambil data dari database: {loadError}. Cek koneksi MongoDB dan file API-nya.
+            </div>
+          )}
+          {loading && <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Memuat data...</p>}
 
           {activeSection === 'dashboard' && (
             <section>
@@ -330,14 +342,13 @@ export default function AdminDashboard() {
               <div className="panel-head">
                 <div>
                   <h2>Daftar guru</h2>
-                  <p>{q ? `${filteredGuru.length} dari ${guruData.length} guru` : `${guruData.length} guru terdaftar`}</p>
+                  <p>{guruData.length} guru terdaftar</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('guru')}>+ Tambah guru</button>
               </div>
               <table>
                 <thead><tr><th>Nama</th><th>NIP</th><th>Mata pelajaran</th><th>Kontak</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {filteredGuru.length === 0 && <EmptyRow cols={6} />}
                   {filteredGuru.map((g) => (
                     <tr key={g.id}>
                       <td>
@@ -371,14 +382,13 @@ export default function AdminDashboard() {
               <div className="panel-head">
                 <div>
                   <h2>Daftar siswa</h2>
-                  <p>{q ? `${filteredSiswa.length} dari ${siswaData.length} siswa` : `${siswaData.length} siswa terdaftar`}</p>
+                  <p>{siswaData.length} siswa terdaftar</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('siswa')}>+ Tambah siswa</button>
               </div>
               <table>
                 <thead><tr><th>Nama</th><th>NIS</th><th>Kelas</th><th>Jenis kelamin</th><th>Status</th><th></th></tr></thead>
                 <tbody>
-                  {filteredSiswa.length === 0 && <EmptyRow cols={6} />}
                   {filteredSiswa.map((s) => (
                     <tr key={s.id}>
                       <td>
@@ -412,14 +422,13 @@ export default function AdminDashboard() {
               <div className="panel-head">
                 <div>
                   <h2>Daftar kelas</h2>
-                  <p>{q ? `${filteredKelas.length} dari ${kelasData.length} kelas` : `${kelasData.length} kelas tahun ajaran 2026/2027`}</p>
+                  <p>{kelasData.length} kelas tahun ajaran 2026/2027</p>
                 </div>
                 <button className="btn btn-primary" onClick={() => openAddModal('kelas')}>+ Tambah kelas</button>
               </div>
               <table>
                 <thead><tr><th>Nama kelas</th><th>Wali kelas</th><th>Jumlah siswa</th><th>Tingkat</th><th></th></tr></thead>
                 <tbody>
-                  {filteredKelas.length === 0 && <EmptyRow cols={5} />}
                   {filteredKelas.map((k) => (
                     <tr key={k.id}>
                       <td className="name-primary">{k.nama}</td>
@@ -450,10 +459,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="mapel-grid">
-                {filteredMapel.length === 0 && (
-                  <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Data tidak ditemukan untuk "{searchQuery.trim()}".</p>
-                )}
-                {filteredMapel.map((m) => (
+                {MAPEL_DATA.map((m) => (
                   <div className="mapel-card" key={m.kode}>
                     <h3>{m.nama}</h3>
                     <div className="kode">Kode: {m.kode}</div>
@@ -492,7 +498,7 @@ export default function AdminDashboard() {
                       onChange={(e) => setAnnounceForm((f) => ({ ...f, judul: e.target.value }))}
                     />
                   </div>
-                  {announceError && <p style={{ color: 'var(--coral)', fontSize: 12.5, margin: '-6px 0 12px' }}>Judul dan isi pengumuman wajib diisi.</p>}
+                  {announceError && <p style={{ color: 'var(--coral)', fontSize: 12.5, margin: '-6px 0 12px' }}>{announceError}</p>}
                   <div className="field-row">
                     <label>Isi pengumuman</label>
                     <textarea
@@ -527,10 +533,7 @@ export default function AdminDashboard() {
               )}
 
               <div className="announce-list">
-                {filteredPengumuman.length === 0 && (
-                  <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Data tidak ditemukan untuk "{searchQuery.trim()}".</p>
-                )}
-                {filteredPengumuman.map((p) => <AnnounceCard key={p.id} p={p} />)}
+                {pengumumanData.map((p) => <AnnounceCard key={p.id} p={p} />)}
               </div>
             </section>
           )}
@@ -565,7 +568,9 @@ export default function AdminDashboard() {
             </div>
             <div className="form-actions">
               <button className="btn" onClick={closeModal}>Batal</button>
-              <button className="btn btn-primary" onClick={saveModal}>Simpan</button>
+              <button className="btn btn-primary" onClick={saveModal} disabled={modal.saving}>
+                {modal.saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
             </div>
           </div>
         </div>
@@ -652,6 +657,7 @@ nav.menu{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
 .search-box{display:flex;align-items:center;gap:8px;background:var(--tosca-50);border:1px solid var(--line);border-radius:8px;padding:8px 12px;width:230px;}
 .search-box input{border:none;background:none;outline:none;font-size:13px;font-family:inherit;width:100%;color:var(--ink);}
 .content{padding:26px;overflow-y:auto;}
+.error-banner{background:var(--coral-100);color:var(--coral-700);border:1px solid #F0B7A3;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;}
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px;}
 .stat-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
 .stat-label{font-size:12.5px;color:var(--ink-soft);}
@@ -662,6 +668,7 @@ nav.menu{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
 .panel-head p{font-size:12.5px;color:var(--ink-soft);margin:2px 0 0;}
 .btn{display:inline-flex;align-items:center;gap:7px;font-family:inherit;font-size:13px;font-weight:600;padding:9px 15px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;}
 .btn:hover{background:var(--tosca-50);}
+.btn:disabled{opacity:0.6;cursor:not-allowed;}
 .btn-primary{background:var(--tosca-700);border-color:var(--tosca-700);color:#fff;}
 .btn-primary:hover{background:var(--tosca-600);}
 table{width:100%;border-collapse:collapse;}
@@ -705,14 +712,6 @@ tbody tr:hover{background:var(--tosca-50);}
 .modal{background:var(--surface);border-radius:14px;width:420px;max-width:92vw;padding:22px 22px 18px;}
 .modal h3{margin:0 0 2px;font-size:16px;font-weight:600;}
 .modal p.sub{margin:0 0 16px;font-size:12.5px;color:var(--ink-soft);}
-.login-screen{display:flex;min-height:100vh;align-items:center;justify-content:center;background:var(--tosca-900);}
-.login-card{width:360px;background:var(--surface);border-radius:16px;padding:32px 28px;text-align:center;}
-.login-card h2{margin:0 0 4px;font-size:18px;}
-.login-card p{margin:0 0 22px;font-size:13px;color:var(--ink-soft);}
-.login-card input{width:100%;padding:11px 13px;margin-bottom:10px;border-radius:8px;border:1px solid var(--line);font-family:inherit;font-size:13.5px;outline:none;}
-.login-card input:focus{border-color:var(--tosca-500);}
-.login-card .btn-primary{width:100%;justify-content:center;margin-top:6px;padding:11px;}
-.login-note{font-size:11.5px;color:var(--ink-faint,#93A6A0);margin-top:16px;}
 @media (max-width:900px){
   .sidebar{width:74px;}
   .brand-name,.brand-sub,.nav-item span.label,.admin-mini-name,.admin-mini-role{display:none;}
