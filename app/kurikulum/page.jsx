@@ -1,5 +1,5 @@
 import KurikulumDashboard from '@/components/KurikulumDashboard';
 
-export default function KurikulumPage() {
+export default function Page() {
   return <KurikulumDashboard />;
 }

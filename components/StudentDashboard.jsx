@@ -3,34 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
-// ====== Data contoh (belum dari database) ======
-const MATERI = [
-  { judul: 'Konsep Dasar Basis Data', mapel: 'Basis Data', guru: 'Ahmad Fauzan', tanggal: '2 Sep 2026', isi: [
-    { h: 'Pengertian basis data', p: 'Basis data adalah kumpulan data yang saling berhubungan dan disimpan secara terstruktur sehingga mudah diakses, dikelola, dan diperbarui.' },
-    { h: 'Komponen utama', p: 'Data disimpan dalam tabel. Setiap tabel terdiri dari baris (record) dan kolom (field). Primary key menjadi identitas unik tiap baris.' },
-    { h: 'Keuntungan menggunakan DBMS', p: 'DBMS membantu mengurangi redundansi data, menjaga konsistensi, serta memudahkan pengaturan hak akses pengguna.' }] },
-  { judul: 'Struktur HTML & CSS Lanjutan', mapel: 'Pemrograman Web', guru: 'Rina Amelia', tanggal: '30 Agu 2026', isi: [
-    { h: 'Semantic HTML', p: 'Gunakan elemen seperti header, nav, main, section, dan footer agar struktur halaman jelas bagi pengguna maupun mesin pencari.' },
-    { h: 'Selector dan specificity', p: 'CSS menentukan aturan mana yang dipakai berdasarkan specificity: inline style, id, class, lalu elemen.' },
-    { h: 'Layout dengan Flexbox', p: 'Flexbox memudahkan penataan elemen dalam satu sumbu menggunakan display flex, justify-content, dan align-items.' }] },
-  { judul: 'Fungsi Trigonometri', mapel: 'Matematika', guru: 'Siti Nurhaliza', tanggal: '28 Agu 2026', isi: [
-    { h: 'Perbandingan trigonometri', p: 'Pada segitiga siku-siku, sin = depan/miring, cos = samping/miring, dan tan = depan/samping.' },
-    { h: 'Sudut istimewa', p: 'Nilai sin, cos, dan tan untuk sudut 0, 30, 45, 60, dan 90 derajat perlu dihafal karena sering dipakai dalam soal.' },
-    { h: 'Identitas dasar', p: 'Identitas yang paling sering dipakai adalah sin kuadrat ditambah cos kuadrat sama dengan 1.' }] },
-];
-
-const ASSESSMENT_AWAL = [
-  { judul: 'Kuis Normalisasi Data', mapel: 'Basis Data', tipe: 'Kuis', deadline: '8 Sep 2026', durasi: 30, status: 'Belum' },
-  { judul: 'Ulangan Harian Bab 2', mapel: 'Bahasa Inggris', tipe: 'Ulangan Harian', deadline: '10 Sep 2026', durasi: 45, status: 'Belum' },
-  { judul: 'Kuis Semantic HTML', mapel: 'Pemrograman Web', tipe: 'Kuis', deadline: '1 Sep 2026', durasi: 20, status: 'Selesai', nilai: 88 },
-];
-
-const NILAI = [
-  { mapel: 'Basis Data', tugas: 85, kuis: 80, uh: '-', rata: 83 },
-  { mapel: 'Pemrograman Web', tugas: 90, kuis: 88, uh: '-', rata: 89 },
-  { mapel: 'Matematika', tugas: 78, kuis: '-', uh: 82, rata: 80 },
-];
-
 const MENU = [
   { key: 'beranda', label: 'Beranda' },
   { key: 'materi', label: 'Materi' },
@@ -42,6 +14,12 @@ const MENU = [
 ];
 
 // ====== Helper ======
+const norm = (s) => (s || '').trim().toLowerCase();
+const rataRata = (arr) => {
+  const v = arr.filter((x) => x !== null && x !== undefined && !isNaN(x)).map(Number);
+  return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+};
+
 function fmtTanggal(d) {
   if (!d) return '-';
   const dt = new Date(d);
@@ -163,8 +141,11 @@ function UploadModal({ t, onClose, onSubmit }) {
 }
 
 function QuizModal({ a, onFinish, onCancel }) {
-  const [sisa, setSisa] = useState(a.durasi * 60);
+  const [sisa, setSisa] = useState((a.durasi || 30) * 60);
+  const [jawaban, setJawaban] = useState(() => a.soal.map((s) => (s.tipe === 'pg' ? -1 : '')));
+  const jawabanRef = useRef(jawaban);
   const selesai = useRef(false);
+  jawabanRef.current = jawaban;
 
   useEffect(() => {
     const iv = setInterval(() => setSisa((s) => s - 1), 1000);
@@ -174,20 +155,23 @@ function QuizModal({ a, onFinish, onCancel }) {
   useEffect(() => {
     if (sisa <= 0 && !selesai.current) {
       selesai.current = true;
-      onFinish(true);
+      onFinish(true, jawabanRef.current);
     }
   }, [sisa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function kumpulkan() {
     if (selesai.current) return;
     selesai.current = true;
-    onFinish(false);
+    onFinish(false, jawabanRef.current);
   }
+
+  const ubah = (i, v) => setJawaban((prev) => prev.map((x, idx) => (idx === i ? v : x)));
 
   return (
     <Modal
       title={a.judul}
       sub={`${a.mapel} · ${a.tipe}`}
+      wide
       locked
       onClose={onCancel}
       actions={
@@ -200,18 +184,18 @@ function QuizModal({ a, onFinish, onCancel }) {
       <div className={`quiz-timer${sisa <= 60 ? ' danger' : ''}`}>
         <span>Sisa waktu</span><b>{fmtWaktu(sisa)}</b>
       </div>
-      <div className="quiz-q">
-        <p>1. Apa kepanjangan dari SQL?</p>
-        <label className="quiz-opt"><input type="radio" name="q1" /> Structured Query Language</label>
-        <label className="quiz-opt"><input type="radio" name="q1" /> System Question Logic</label>
-        <label className="quiz-opt"><input type="radio" name="q1" /> Simple Query Line</label>
-      </div>
-      <div className="quiz-q">
-        <p>2. Primary key berfungsi untuk?</p>
-        <label className="quiz-opt"><input type="radio" name="q2" /> Mengunci tabel</label>
-        <label className="quiz-opt"><input type="radio" name="q2" /> Identitas unik tiap baris data</label>
-        <label className="quiz-opt"><input type="radio" name="q2" /> Mempercepat internet</label>
-      </div>
+      {a.soal.map((s, i) => (
+        <div className="quiz-q" key={i}>
+          <p>{i + 1}. {s.tanya} <span style={{ color: 'var(--ink-faint)', fontSize: 12 }}>({s.poin} poin)</span></p>
+          {s.tipe === 'pg'
+            ? s.opsi.map((o, k) => o && (
+              <label className="quiz-opt" key={k}>
+                <input type="radio" name={`q${i}`} checked={jawaban[i] === k} onChange={() => ubah(i, k)} /> {o}
+              </label>
+            ))
+            : <textarea className="field-input" rows={4} value={jawaban[i]} onChange={(e) => ubah(i, e.target.value)} placeholder="Tulis jawabanmu di sini..." style={{ width: '100%' }} />}
+        </div>
+      ))}
     </Modal>
   );
 }
@@ -224,7 +208,10 @@ export default function StudentDashboard() {
   const [tugasAll, setTugasAll] = useState([]);
   const [pengumpulan, setPengumpulan] = useState([]);
   const [pengumumanAdmin, setPengumumanAdmin] = useState([]);
-  const [assessment, setAssessment] = useState(ASSESSMENT_AWAL);
+  const [materiAll, setMateriAll] = useState([]);
+  const [assessmentAll, setAssessmentAll] = useState([]);
+  const [hasil, setHasil] = useState([]);
+  const [nilaiDb, setNilaiDb] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
@@ -233,18 +220,27 @@ export default function StudentDashboard() {
 
   const muat = useCallback(async (u) => {
     try {
-      const [t, p, pg, sw] = await Promise.all([
+      const [t, p, pg, sw, mt, as, hs] = await Promise.all([
         api('/api/tugas'),
         api('/api/pengumuman'),
         u ? api(`/api/pengumpulan?siswaId=${encodeURIComponent(u._id)}`) : Promise.resolve([]),
         u ? api('/api/siswa') : Promise.resolve([]),
+        api('/api/materi'),
+        api('/api/assessment'),
+        u ? api(`/api/hasil?siswaId=${encodeURIComponent(u._id)}`) : Promise.resolve([]),
       ]);
+      setMateriAll(mt);
+      setAssessmentAll(as);
+      setHasil(hs.filter((x) => u && x.siswaId === u._id));
       setTugasAll(t);
       setPengumumanAdmin(p.filter((x) => x.status === 'Terbit' && (x.target === 'Semua' || x.target === 'Siswa saja')));
       setPengumpulan(pg.filter((x) => u && x.siswaId === u._id));
       if (u) {
         const nama = (u.nama || '').trim().toLowerCase();
-        setMe(sw.find((s) => (s.nama || '').trim().toLowerCase() === nama) || null);
+        const siswa = sw.find((s) => (s.nama || '').trim().toLowerCase() === nama) || null;
+        setMe(siswa);
+        const nl = await api(`/api/nilai?siswaNama=${encodeURIComponent(siswa ? siswa.nama : u.nama)}`);
+        setNilaiDb(nl);
       }
       setError('');
     } catch (e) {
@@ -255,13 +251,28 @@ export default function StudentDashboard() {
   }, []);
 
   useEffect(() => {
-    const u = getLoginUser();
-    setUser(u);
-    muat(u);
-    // Cek tugas baru dari guru tiap 30 detik
-    const iv = setInterval(() => muat(u), 30000);
-    return () => clearInterval(iv);
-  }, [muat]);
+    let iv;
+    let batal = false;
+    (async () => {
+      let u = getLoginUser();
+      if (u && u.role === 'guru') { router.replace('/guru'); return; }
+      // Mode coba untuk admin: buka /siswa?sebagai=Nama Siswa
+      const sebagai = new URLSearchParams(window.location.search).get('sebagai');
+      if (u && u.role === 'admin' && sebagai) {
+        try {
+          const sw = await api('/api/siswa');
+          const s = sw.find((x) => (x.nama || '').trim().toLowerCase() === sebagai.trim().toLowerCase());
+          if (s) u = { _id: s.id, nama: s.nama, kelas: s.kelas, role: 'murid' };
+        } catch (e) { /* abaikan */ }
+      }
+      if (batal) return;
+      setUser(u);
+      muat(u);
+      // Cek tugas baru dari guru tiap 30 detik
+      iv = setInterval(() => muat(u), 30000);
+    })();
+    return () => { batal = true; if (iv) clearInterval(iv); };
+  }, [muat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tugas untuk kelas siswa ini (atau yang ditujukan ke "Semua")
   const tugas = tugasAll
@@ -272,9 +283,41 @@ export default function StudentDashboard() {
     });
   const tugasBelum = tugas.filter((t) => t.status === 'Belum Dikumpulkan');
 
+  const untukKelasIni = (x) => x.kelas === 'Semua' || (kelas && norm(x.kelas) === norm(kelas));
+  const materi = materiAll.filter(untukKelasIni).sort((a, b) => new Date(b.tanggal) - new Date(a.tanggal));
+  const assessment = assessmentAll.filter(untukKelasIni).map((a) => {
+    const h = hasil.find((x) => x.assessmentId === a.id);
+    return { ...a, h, status: h ? 'Selesai' : 'Belum' };
+  });
+
+  // Rekap nilai per mata pelajaran: nilai dari guru (jika ada) atau dihitung otomatis
+  const mapelSet = Array.from(new Set([...tugas.map((t) => t.mapel), ...assessment.map((a) => a.mapel), ...nilaiDb.map((n) => n.mapel)]));
+  const nilaiRows = mapelSet.map((mapel) => {
+    const db = nilaiDb.find((n) => n.mapel === mapel) || {};
+    const tv = rataRata(tugas.filter((t) => t.mapel === mapel && t.pg && t.pg.nilai != null).map((t) => t.pg.nilai));
+    const hv = (tipe) => rataRata(assessment.filter((a) => a.mapel === mapel && a.tipe === tipe && a.h && a.h.nilai != null).map((a) => a.h.nilai));
+    const pilih = (manual, auto) => (manual !== undefined && manual !== null ? manual : auto);
+    const tugasN = pilih(db.tugas, tv);
+    const kuisN = pilih(db.kuis, hv('Kuis'));
+    const uhN = pilih(db.uh, hv('Ulangan Harian'));
+    return { mapel, tugas: tugasN, kuis: kuisN, uh: uhN, rata: rataRata([tugasN, kuisN, uhN]) };
+  }).filter((r) => r.tugas !== null || r.kuis !== null || r.uh !== null);
+  const fmtN = (v) => (v === null || v === undefined ? '-' : v);
+
   async function kumpulkanTugas(t, file) {
     if (!user) throw new Error('Data login tidak ditemukan. Silakan login ulang.');
+    // 1) unggah isi file ke database, 2) simpan data pengumpulan
+    let fileId = t.pg ? t.pg.fileId || '' : '';
+    if (file) {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/upload', { method: 'POST', body: fd });
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok) throw new Error(upData.error || 'Gagal mengunggah file.');
+      fileId = upData.id;
+    }
     const body = {
+      fileId,
       tugasId: t.id,
       siswaId: user._id,
       siswaNama: user.nama,
@@ -287,10 +330,22 @@ export default function StudentDashboard() {
     setPengumpulan((prev) => (t.pg ? prev.map((x) => (x.id === saved.id ? saved : x)) : [...prev, saved]));
   }
 
-  function selesaiAssessment(i, otomatis) {
-    const a = assessment[i];
-    setAssessment((prev) => prev.map((x, idx) => (idx === i ? { ...x, status: 'Selesai', nilai: Math.floor(Math.random() * 21) + 75 } : x)));
-    setModal(otomatis ? { type: 'timeout', judul: a.judul } : null);
+  async function selesaiAssessment(a, otomatis, jawaban) {
+    const pg = a.soal.map((s, i) => ({ s, i })).filter((x) => x.s.tipe === 'pg');
+    const totalPg = pg.reduce((sum, x) => sum + (Number(x.s.poin) || 0), 0);
+    const benar = pg.reduce((sum, x) => sum + (jawaban[x.i] === x.s.benar ? Number(x.s.poin) || 0 : 0), 0);
+    const nilai = totalPg > 0 ? Math.round((benar / totalPg) * 100) : null;
+    const adaEsai = a.soal.some((s) => s.tipe === 'esai');
+    try {
+      if (!user) throw new Error('Data login tidak ditemukan. Silakan login ulang.');
+      const saved = await api('/api/hasil', 'POST', {
+        assessmentId: a.id, siswaId: user._id, siswaNama: user.nama, jawaban, nilai, perluDinilai: adaEsai, selesaiPada: new Date().toISOString(),
+      });
+      setHasil((prev) => [...prev, saved]);
+      setModal(otomatis ? { type: 'timeout', judul: a.judul } : { type: 'hasilInfo', judul: a.judul, nilai, adaEsai });
+    } catch (e) {
+      setModal({ type: 'gagal', pesan: e.message });
+    }
   }
 
   function keluar() {
@@ -308,33 +363,30 @@ export default function StudentDashboard() {
     const tutup = () => setModal(null);
 
     if (modal.type === 'materi') {
-      const m = MATERI[modal.i];
+      const m = materi.find((x) => x.id === modal.id);
+      if (!m) return null;
+      const nm = (m.namaFile || '').toLowerCase();
+      const url = m.fileId ? `/api/berkas/${m.fileId}` : '';
       return (
         <Modal
           title={m.judul}
-          sub={`${m.mapel} · ${m.guru} · ${m.tanggal}`}
+          sub={`${m.mapel} · ${m.guru} · ${fmtTanggal(m.tanggal)}`}
           wide
           onClose={tutup}
           actions={
             <>
               <button className="btn" onClick={tutup}>Tutup</button>
-              <button className="btn btn-primary" onClick={() => setModal({ type: 'unduh', judul: m.judul })}>Unduh PDF</button>
+              {url && <a className="btn btn-primary" href={`${url}?unduh=1`} style={{ textDecoration: 'none' }}>Unduh file</a>}
             </>
           }
         >
           <div className="viewer">
-            {m.isi.map((b) => (<div key={b.h}><h5>{b.h}</h5><p>{b.p}</p></div>))}
-            <p className="viewer-note">(Materi masih contoh, belum tersambung ke file dari guru.)</p>
+            {m.catatan && <p style={{ whiteSpace: 'pre-wrap' }}>{m.catatan}</p>}
+            {url && /\.pdf$/.test(nm) && <iframe src={url} title={m.judul} style={{ width: '100%', height: 420, border: 0, borderRadius: 8 }} />}
+            {url && /\.(png|jpe?g|gif|webp)$/.test(nm) && <img src={url} alt={m.judul} style={{ width: '100%', maxHeight: 420, objectFit: 'contain' }} />}
+            {url && !/\.(pdf|png|jpe?g|gif|webp)$/.test(nm) && <p>File materi: <b>{m.namaFile}</b>. Klik &quot;Unduh file&quot; untuk membukanya.</p>}
+            {!m.catatan && !url && <p>Materi ini belum memiliki isi.</p>}
           </div>
-        </Modal>
-      );
-    }
-
-    if (modal.type === 'unduh') {
-      return (
-        <Modal title="Unduh materi" sub={`Materi "${modal.judul}" akan diunduh sebagai PDF.`} onClose={tutup}
-          actions={<button className="btn btn-primary" onClick={tutup}>Tutup</button>}>
-          <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>(Belum tersambung ke file asli.)</p>
         </Modal>
       );
     }
@@ -369,7 +421,7 @@ export default function StudentDashboard() {
               : <p>Tidak ada instruksi tambahan.</p>}
             {t.lampiran && (<><h5>Lampiran</h5><p>{t.lampiran}</p></>)}
             <h5>Batas pengumpulan</h5><p>{fmtTanggal(t.deadline)}</p>
-            {t.pg && (<><h5>Pengumpulan kamu</h5><p>{t.pg.namaFile || '(tanpa nama file)'} · {fmtTanggal(t.pg.dikumpulkanPada)}{t.pg.nilai != null ? ` · nilai ${t.pg.nilai}` : ''}</p></>)}
+            {t.pg && (<><h5>Pengumpulan kamu</h5><p>{t.pg.namaFile || '(tanpa nama file)'} · {fmtTanggal(t.pg.dikumpulkanPada)}{t.pg.nilai != null ? ` · nilai ${t.pg.nilai}` : ''}</p>{t.pg.komentar && <p><b>Komentar guru:</b> {t.pg.komentar}</p>}</>)}
           </div>
         </Modal>
       );
@@ -382,23 +434,45 @@ export default function StudentDashboard() {
     }
 
     if (modal.type === 'asesInfo') {
-      const a = assessment[modal.i];
+      const a = assessment.find((x) => x.id === modal.id);
+      if (!a) return null;
       return (
         <Modal title={a.judul} sub={`${a.mapel} · ${a.tipe}`} onClose={tutup}
           actions={
             <>
               <button className="btn" onClick={tutup}>Batal</button>
-              <button className="btn btn-primary" onClick={() => setModal({ type: 'quiz', i: modal.i })}>Mulai kerjakan</button>
+              <button className="btn btn-primary" onClick={() => setModal({ type: 'quiz', id: a.id })}>Mulai kerjakan</button>
             </>
           }>
-          <p style={{ fontSize: 13, lineHeight: 1.7, margin: '0 0 6px' }}>Waktu pengerjaan: <b>{a.durasi} menit</b><br />Jumlah soal: <b>2</b></p>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>Timer mulai berjalan saat kamu klik &quot;Mulai kerjakan&quot;. Jika waktu habis, jawaban otomatis dikumpulkan.</p>
+          <p style={{ fontSize: 13, lineHeight: 1.7, margin: '0 0 6px' }}>Waktu pengerjaan: <b>{a.durasi} menit</b><br />Jumlah soal: <b>{a.soal.length}</b></p>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6, margin: 0 }}>Timer mulai berjalan saat kamu klik &quot;Mulai kerjakan&quot;. Jika waktu habis, jawaban otomatis dikumpulkan. Assessment hanya bisa dikerjakan satu kali.</p>
         </Modal>
       );
     }
 
     if (modal.type === 'quiz') {
-      return <QuizModal a={assessment[modal.i]} onFinish={(otomatis) => selesaiAssessment(modal.i, otomatis)} onCancel={tutup} />;
+      const a = assessment.find((x) => x.id === modal.id);
+      if (!a) return null;
+      return <QuizModal a={a} onFinish={(otomatis, jawaban) => selesaiAssessment(a, otomatis, jawaban)} onCancel={tutup} />;
+    }
+
+    if (modal.type === 'hasilInfo') {
+      return (
+        <Modal title="Jawaban terkirim" sub={modal.judul} onClose={tutup} actions={<button className="btn btn-primary" onClick={tutup}>Tutup</button>}>
+          <p style={{ fontSize: 13, margin: 0 }}>
+            {modal.nilai !== null && <>Nilai pilihan ganda kamu: <b>{modal.nilai}</b>. </>}
+            {modal.adaEsai && 'Soal esai akan diperiksa guru, nilai akhir bisa berubah setelah diperiksa.'}
+          </p>
+        </Modal>
+      );
+    }
+
+    if (modal.type === 'gagal') {
+      return (
+        <Modal title="Gagal mengirim jawaban" sub="Coba lagi atau hubungi guru." onClose={tutup} actions={<button className="btn btn-primary" onClick={tutup}>Tutup</button>}>
+          <p style={{ fontSize: 13, color: 'var(--coral)', margin: 0 }}>{modal.pesan}</p>
+        </Modal>
+      );
     }
 
     if (modal.type === 'timeout') {
@@ -490,12 +564,12 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-               <div className="content">
+        <div className="content">
           {error && <div className="error-banner">Gagal mengambil data dari database: {error}</div>}
           {!loading && !user && (
             <div className="warn-banner">Data login tidak ditemukan di browser, jadi tugas tidak bisa dikumpulkan. Silakan login ulang.</div>
           )}
-          {!loading && user && !kelas && !['admin', 'guru', 'kepsek', 'kurikulum'].includes(user.role) && (
+          {!loading && user && !kelas && (
             <div className="warn-banner">Kelasmu belum terdeteksi. Pastikan namamu terdaftar di menu Siswa (admin) dengan kelas yang benar. Sementara ini hanya tugas untuk &quot;Semua&quot; yang tampil.</div>
           )}
           {loading && <p style={{ color: 'var(--ink-soft)', fontSize: 13.5 }}>Memuat data...</p>}
@@ -531,10 +605,11 @@ export default function StudentDashboard() {
                   <span className="link" onClick={() => setSection('materi')}>Lihat semua</span>
                 </div>
                 <div className="panel-body">
-                  {MATERI.slice(0, 2).map((m, i) => (
-                    <div className="list-row" key={m.judul}>
+                  {materi.length === 0 && <div className="panel-body empty" style={{ padding: '10px 0' }}>Belum ada materi dari guru.</div>}
+                  {materi.slice(0, 2).map((m) => (
+                    <div className="list-row" key={m.id}>
                       <div><div className="title">{m.judul}</div><div className="sub">{m.mapel} · {m.guru}</div></div>
-                      <button className="btn" onClick={() => setModal({ type: 'materi', i })}>Lihat</button>
+                      <button className="btn" onClick={() => setModal({ type: 'materi', id: m.id })}>Lihat</button>
                     </div>
                   ))}
                 </div>
@@ -550,20 +625,23 @@ export default function StudentDashboard() {
                 <table>
                   <thead><tr><th>Judul materi</th><th>Mata pelajaran</th><th>Guru</th><th>Tanggal</th><th></th></tr></thead>
                   <tbody>
-                    {MATERI.map((m, i) => (
-                      <tr key={m.judul}>
+                    {materi.map((m) => (
+                      <tr key={m.id}>
                         <td style={{ fontWeight: 600 }}>{m.judul}</td>
                         <td>{m.mapel}</td>
                         <td>{m.guru}</td>
-                        <td>{m.tanggal}</td>
+                        <td>{fmtTanggal(m.tanggal)}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn" onClick={() => setModal({ type: 'materi', i })}>Lihat</button>
-                            <button className="btn btn-primary" onClick={() => setModal({ type: 'unduh', judul: m.judul })}>Unduh PDF</button>
+                            <button className="btn" onClick={() => setModal({ type: 'materi', id: m.id })}>Lihat</button>
+                            {m.fileId && <a className="btn btn-primary" href={`/api/berkas/${m.fileId}?unduh=1`} style={{ textDecoration: 'none' }}>Unduh</a>}
                           </div>
                         </td>
                       </tr>
                     ))}
+                    {!loading && materi.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 24 }}>Belum ada materi dari guru.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -578,20 +656,23 @@ export default function StudentDashboard() {
                 <table>
                   <thead><tr><th>Judul</th><th>Mata pelajaran</th><th>Tipe</th><th>Tenggat</th><th>Status</th><th></th></tr></thead>
                   <tbody>
-                    {assessment.map((a, i) => (
-                      <tr key={a.judul}>
+                    {assessment.map((a) => (
+                      <tr key={a.id}>
                         <td style={{ fontWeight: 600 }}>{a.judul}</td>
                         <td>{a.mapel}</td>
                         <td>{a.tipe}</td>
-                        <td>{a.deadline}</td>
-                        <td><Pill s={a.status} />{a.status === 'Selesai' && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> ({a.nilai})</span>}</td>
+                        <td>{a.deadlineDate ? fmtTanggal(a.deadlineDate) : '-'}</td>
+                        <td><Pill s={a.status} />{a.status === 'Selesai' && a.h && a.h.nilai != null && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> ({a.h.nilai})</span>}{a.status === 'Selesai' && a.h && a.h.perluDinilai && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> menunggu esai</span>}</td>
                         <td>
                           {a.status === 'Belum'
-                            ? <button className="btn btn-primary" onClick={() => setModal({ type: 'asesInfo', i })}>Kerjakan</button>
-                            : <button className="btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>Sudah dinilai</button>}
+                            ? <button className="btn btn-primary" onClick={() => setModal({ type: 'asesInfo', id: a.id })}>Kerjakan</button>
+                            : <button className="btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>Sudah dikerjakan</button>}
                         </td>
                       </tr>
                     ))}
+                    {!loading && assessment.length === 0 && (
+                      <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 24 }}>Belum ada assessment dari guru.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -624,15 +705,18 @@ export default function StudentDashboard() {
                 <table>
                   <thead><tr><th>Mata pelajaran</th><th>Tugas</th><th>Kuis</th><th>Ulangan harian</th><th>Rata-rata</th></tr></thead>
                   <tbody>
-                    {NILAI.map((n) => (
+                    {nilaiRows.map((n) => (
                       <tr key={n.mapel}>
                         <td style={{ fontWeight: 600 }}>{n.mapel}</td>
-                        <td>{n.tugas}</td>
-                        <td>{n.kuis}</td>
-                        <td>{n.uh}</td>
-                        <td style={{ fontWeight: 700, color: 'var(--tosca-700)' }}>{n.rata}</td>
+                        <td>{fmtN(n.tugas)}</td>
+                        <td>{fmtN(n.kuis)}</td>
+                        <td>{fmtN(n.uh)}</td>
+                        <td style={{ fontWeight: 700, color: 'var(--tosca-700)' }}>{fmtN(n.rata)}</td>
                       </tr>
                     ))}
+                    {!loading && nilaiRows.length === 0 && (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 24 }}>Belum ada nilai.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 // ====== Konstanta ======
 const MAPEL = ["Basis Data", "Pemrograman Web", "Matematika", "Bahasa Indonesia", "Bahasa Inggris", "Fisika", "Kimia", "IPAS", "PPKn", "Sejarah Indonesia", "Pendidikan Agama", "Seni Budaya", "PJOK", "Produk Kreatif dan Kewirausahaan"];
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-const STORE_KEY = 'lms-guru-lokal-v1';
 
 const MENU = [
   { key: 'beranda', label: 'Beranda' },
@@ -18,20 +17,17 @@ const MENU = [
   { key: 'profil', label: 'Profil' },
 ];
 
-// Data contoh untuk Materi, Assessment, dan Nilai (masih disimpan di browser, belum di database)
-const MATERI_AWAL = [
-  { id: 'm1', judul: 'Konsep Dasar Basis Data', mapel: 'Basis Data', kelas: 'XII PPLG 2', tanggal: '2 Sep 2026' },
-  { id: 'm2', judul: 'Normalisasi Tabel', mapel: 'Basis Data', kelas: 'XII PPLG 2', tanggal: '28 Agu 2026' },
-];
-const ASSESSMENT_AWAL = [
-  { id: 'a1', judul: 'Kuis Normalisasi Data', mapel: 'Basis Data', kelas: 'XII PPLG 2', tipe: 'Kuis', jumlahSoal: 2, totalPoin: 20, durasi: 30, deadlineDate: '2026-09-08',
-    soal: [
-      { tipe: 'pg', poin: 10, tanya: 'Apa tujuan utama normalisasi basis data?', opsi: ['Mengurangi redundansi data', 'Mempercepat koneksi internet', 'Memperbesar ukuran tabel', 'Menghapus primary key'], benar: 0 },
-      { tipe: 'esai', poin: 10, tanya: 'Jelaskan perbedaan 1NF dan 2NF beserta contohnya.', opsi: ['', '', '', ''], benar: -1 },
-    ] },
-];
-
 // ====== Helper ======
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Gagal mengunggah file.');
+  return data; // { id, nama }
+}
+const rataRata = (arr) => (arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null);
+
 const pad = (n) => String(n).padStart(2, '0');
 const norm = (s) => (s || '').trim().toLowerCase();
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -142,12 +138,22 @@ function MateriModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
   const [judul, setJudul] = useState(edit ? edit.judul : '');
   const [mapel, setMapel] = useState(edit ? edit.mapel : defaultMapel);
   const [kelas, setKelas] = useState(edit ? edit.kelas : kelasOpsi[0]);
-  const [catatan, setCatatan] = useState('');
+  const [catatan, setCatatan] = useState(edit ? edit.catatan || '' : '');
+  const [file, setFile] = useState(null);
   const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function simpan() {
+  async function simpan() {
     if (!judul.trim()) { setErr('Judul materi wajib diisi.'); return; }
-    onSave({ id: edit ? edit.id : uid(), judul: judul.trim(), mapel, kelas, tanggal: edit ? edit.tanggal : fmtTanggal(new Date()) });
+    if (!file && !catatan.trim() && !(edit && edit.fileId)) { setErr('Isi catatan atau upload file materi.'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      await onSave({ judul: judul.trim(), mapel, kelas, catatan: catatan.trim() }, file);
+    } catch (e) {
+      setErr(e.message);
+      setSaving(false);
+    }
   }
 
   return (
@@ -159,17 +165,26 @@ function MateriModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
         <div className="field-row"><label>Judul materi</label><input type="text" value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Contoh: Konsep Dasar Basis Data" /></div>
         <div className="field-row-2">
           <div className="field-row"><label>Mata pelajaran</label>
-            <select value={mapel} onChange={(e) => setMapel(e.target.value)}>{MAPEL.map((m) => <option key={m}>{m}</option>)}</select>
+            <select value={mapel} onChange={(e) => setMapel(e.target.value)}>
+              {!MAPEL.includes(mapel) && <option>{mapel}</option>}
+              {MAPEL.map((m) => <option key={m}>{m}</option>)}
+            </select>
           </div>
           <div className="field-row"><label>Kelas</label>
-            <select value={kelas} onChange={(e) => setKelas(e.target.value)}>{kelasOpsi.map((k) => <option key={k}>{k}</option>)}</select>
+            <select value={kelas} onChange={(e) => setKelas(e.target.value)}>
+              {!kelasOpsi.includes(kelas) && <option>{kelas}</option>}
+              {kelasOpsi.map((k) => <option key={k}>{k}</option>)}
+            </select>
           </div>
         </div>
-        <div className="field-row"><label>Upload file (opsional)</label><input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx" /></div>
+        <div className="field-row"><label>Upload file (opsional, maks 8 MB)</label>
+          <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          {edit && edit.namaFile && !file && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>File saat ini: {edit.namaFile} (pilih file baru untuk mengganti)</span>}
+        </div>
         <div className="field-row"><label>Catatan / ringkasan materi</label><textarea value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Tulis ringkasan materi di sini..." /></div>
         <div className="form-actions">
           <button className="btn" onClick={onClose}>Batal</button>
-          <button className="btn btn-primary" onClick={simpan}>Simpan</button>
+          <button className="btn btn-primary" onClick={simpan} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan'}</button>
         </div>
       </div>
     </Overlay>
@@ -177,6 +192,62 @@ function MateriModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
 }
 
 // ====== Modal Tugas (tersambung database) ======
+function PeriksaModal({ pg, nama, tugas, onClose, onSave }) {
+  const [nilai, setNilai] = useState(pg.nilai ?? '');
+  const [komentar, setKomentar] = useState(pg.komentar || '');
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const nm = (pg.namaFile || '').toLowerCase();
+  const url = pg.fileId ? `/api/berkas/${pg.fileId}` : '';
+  const isGambar = /\.(png|jpe?g|gif|webp)$/.test(nm);
+  const isPdf = /\.pdf$/.test(nm);
+
+  async function simpan() {
+    const n = nilai === '' ? null : Number(nilai);
+    if (n !== null && (isNaN(n) || n < 0 || n > 100)) { setErr('Nilai harus antara 0 sampai 100.'); return; }
+    setSaving(true);
+    setErr('');
+    try { await onSave(pg, n, komentar.trim()); onClose(); } catch (e) { setErr(e.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ width: 720 }}>
+        <h3>Periksa tugas: {nama}</h3>
+        <p className="sub">{tugas ? tugas.judul : ''} · dikumpulkan {fmtWaktu(pg.dikumpulkanPada)}</p>
+        {!url && <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Siswa ini mengumpulkan sebelum fitur penyimpanan file aktif, jadi isi file tidak tersedia (nama file: {pg.namaFile || '-'}). Minta siswa upload ulang.</p>}
+        {url && (
+          <>
+            <div style={{ border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden', marginBottom: 10, background: '#f7faf9' }}>
+              {isPdf && <iframe src={url} title="Pratinjau" style={{ width: '100%', height: 420, border: 0 }} />}
+              {isGambar && <img src={url} alt={pg.namaFile} style={{ width: '100%', maxHeight: 420, objectFit: 'contain', display: 'block' }} />}
+              {!isPdf && !isGambar && <p style={{ padding: 16, margin: 0, fontSize: 13 }}>Pratinjau tidak tersedia untuk jenis file ini. Silakan unduh untuk membukanya.</p>}
+            </div>
+            <p style={{ margin: '0 0 14px', fontSize: 13 }}>
+              <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--tosca-600)', fontWeight: 600 }}>Buka di tab baru</a>
+              {' · '}
+              <a href={`${url}?unduh=1`} style={{ color: 'var(--tosca-600)', fontWeight: 600 }}>Unduh {pg.namaFile}</a>
+            </p>
+          </>
+        )}
+        <div className="field-row">
+          <label>Nilai (0-100)</label>
+          <input className="field-input" type="number" min="0" max="100" value={nilai} onChange={(e) => setNilai(e.target.value)} />
+        </div>
+        <div className="field-row">
+          <label>Komentar untuk siswa (opsional)</label>
+          <textarea className="field-input" rows={3} value={komentar} onChange={(e) => setKomentar(e.target.value)} />
+        </div>
+        {err && <p style={{ color: 'var(--coral)', fontSize: 12.5, margin: '0 0 8px' }}>{err}</p>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn" onClick={onClose}>Tutup</button>
+          <button className="btn btn-primary" disabled={saving} onClick={simpan}>{saving ? 'Menyimpan...' : 'Simpan nilai'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TugasModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
   const [judul, setJudul] = useState(edit ? edit.judul : '');
   const [mapel, setMapel] = useState(edit ? edit.mapel : defaultMapel);
@@ -263,6 +334,64 @@ function TugasModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
   );
 }
 
+// ====== Modal hasil assessment (nilai + jawaban siswa) ======
+function HasilModal({ a, daftar, onClose, onSave }) {
+  const [draft, setDraft] = useState({});
+  const [err, setErr] = useState('');
+  const [bukaId, setBukaId] = useState('');
+
+  async function simpan(h) {
+    const v = draft[h.id];
+    if (v === undefined || v === '') return;
+    const n = Number(v);
+    if (isNaN(n) || n < 0 || n > 100) { setErr('Nilai harus antara 0 sampai 100.'); return; }
+    try { await onSave(h, n); setErr(''); } catch (e) { setErr(e.message); }
+  }
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal" style={{ width: 640 }}>
+        <h3>Hasil: {a.judul}</h3>
+        <p className="sub">{a.mapel} · {a.kelas} · {a.tipe}. Soal pilihan ganda dinilai otomatis; soal esai perlu kamu periksa lalu ubah nilainya.</p>
+        <Err>{err}</Err>
+        {daftar.length === 0 && <p style={{ fontSize: 13, color: 'var(--ink-soft)' }}>Belum ada siswa yang mengerjakan.</p>}
+        {daftar.map((h) => (
+          <div key={h.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <b style={{ flex: 1, minWidth: 120 }}>{h.siswaNama}</b>
+              {h.perluDinilai && <span className="pill pill-amber">Ada esai</span>}
+              <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{fmtWaktu(h.selesaiPada)}</span>
+              <input className="nilai-input" type="number" min="0" max="100" defaultValue={h.nilai ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [h.id]: e.target.value }))} />
+              <button className="btn" onClick={() => simpan(h)}>Simpan</button>
+              <button className="btn" onClick={() => setBukaId(bukaId === h.id ? '' : h.id)}>{bukaId === h.id ? 'Tutup jawaban' : 'Lihat jawaban'}</button>
+            </div>
+            {bukaId === h.id && (
+              <div style={{ marginTop: 10, fontSize: 13 }}>
+                {a.soal.map((s, i) => {
+                  const j = (h.jawaban || [])[i];
+                  return (
+                    <div key={i} style={{ marginBottom: 8 }}>
+                      <div><b>{i + 1}.</b> {s.tanya} <span style={{ color: 'var(--ink-soft)' }}>({s.poin} poin)</span></div>
+                      {s.tipe === 'pg' ? (
+                        <div style={{ color: j === s.benar ? 'var(--tosca-700)' : 'var(--coral)' }}>
+                          Jawaban: {typeof j === 'number' && j >= 0 ? s.opsi[j] : '(kosong)'} {j === s.benar ? '✓ benar' : `✗ (benar: ${s.opsi[s.benar]})`}
+                        </div>
+                      ) : (
+                        <div style={{ background: '#f7faf9', borderRadius: 8, padding: '6px 10px', whiteSpace: 'pre-wrap' }}>{j ? String(j) : '(kosong)'}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+        <div className="form-actions"><button className="btn" onClick={onClose}>Tutup</button></div>
+      </div>
+    </Overlay>
+  );
+}
+
 // ====== Modal Assessment ======
 const SOAL_BARU = () => ({ tipe: 'pg', poin: 10, tanya: '', opsi: ['', '', '', ''], benar: -1 });
 
@@ -273,6 +402,7 @@ function AssessmentModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
   const [tipe, setTipe] = useState(edit ? edit.tipe : 'Kuis');
   const [durasi, setDurasi] = useState(edit ? String(edit.durasi || '') : '');
   const [deadline, setDeadline] = useState(edit ? edit.deadlineDate || '' : '');
+  const [saving, setSaving] = useState(false);
   const [soal, setSoal] = useState(edit && edit.soal && edit.soal.length ? edit.soal.map((s) => ({ ...s, opsi: [...s.opsi, '', '', '', ''].slice(0, 4) })) : [SOAL_BARU()]);
   const [err, setErr] = useState('');
 
@@ -293,10 +423,12 @@ function AssessmentModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
       }
     }
     const rapi = soal.map((s) => ({ ...s, poin: Number(s.poin) || 0, tanya: s.tanya.trim(), opsi: s.tipe === 'pg' ? s.opsi.map((o) => o.trim()) : ['', '', '', ''], benar: s.tipe === 'pg' ? s.benar : -1 }));
-    onSave({
-      id: edit ? edit.id : uid(), judul: judul.trim(), mapel, kelas, tipe, jumlahSoal: rapi.length,
+    setSaving(true);
+    setErr('');
+    Promise.resolve(onSave({
+      judul: judul.trim(), mapel, kelas, tipe, jumlahSoal: rapi.length,
       totalPoin: rapi.reduce((sum, s) => sum + s.poin, 0), durasi: Math.round(d), deadlineDate: deadline, soal: rapi,
-    });
+    })).catch((e) => { setErr(e.message); setSaving(false); });
   }
 
   return (
@@ -358,7 +490,7 @@ function AssessmentModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
 
         <div className="form-actions">
           <button className="btn" onClick={onClose}>Batal</button>
-          <button className="btn btn-primary" onClick={simpan}>Simpan assessment</button>
+          <button className="btn btn-primary" onClick={simpan} disabled={saving}>{saving ? 'Menyimpan...' : 'Simpan assessment'}</button>
         </div>
       </div>
     </Overlay>
@@ -381,11 +513,12 @@ export default function GuruDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Data lokal (contoh, belum di database)
-  const [materi, setMateri] = useState(MATERI_AWAL);
-  const [assessment, setAssessment] = useState(ASSESSMENT_AWAL);
-  const [nilaiLokal, setNilaiLokal] = useState({});
-  const siapLokal = useRef(false);
+  const [materiAll, setMateriAll] = useState([]);
+  const [assessmentAll, setAssessmentAll] = useState([]);
+  const [hasil, setHasil] = useState([]);
+  const [nilaiDb, setNilaiDb] = useState([]);
+  const [nilaiEdit, setNilaiEdit] = useState({});
+  const [mapelNilai, setMapelNilai] = useState('');
 
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
@@ -395,9 +528,14 @@ export default function GuruDashboard() {
 
   const muat = useCallback(async () => {
     try {
-      const [t, pg, sw, k, g, pu] = await Promise.all([
+      const [t, pg, sw, k, g, pu, mt, as, hs, nl] = await Promise.all([
         api('/api/tugas'), api('/api/pengumpulan'), api('/api/siswa'), api('/api/kelas'), api('/api/guru'), api('/api/pengumuman'),
+        api('/api/materi'), api('/api/assessment'), api('/api/hasil'), api('/api/nilai'),
       ]);
+      setMateriAll(mt);
+      setAssessmentAll(as);
+      setHasil(hs);
+      setNilaiDb(nl);
       setTugasAll(t);
       setPengumpulan(pg);
       setSiswaList(sw);
@@ -419,24 +557,6 @@ export default function GuruDashboard() {
     return () => clearInterval(iv);
   }, [muat]);
 
-  // Data lokal dibaca dari browser setelah halaman tampil
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        if (Array.isArray(d.materi)) setMateri(d.materi);
-        if (Array.isArray(d.assessment)) setAssessment(d.assessment);
-        if (d.nilai && typeof d.nilai === 'object') setNilaiLokal(d.nilai);
-      }
-    } catch (e) { /* abaikan */ }
-    siapLokal.current = true;
-  }, []);
-  useEffect(() => {
-    if (!siapLokal.current) return;
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ materi, assessment, nilai: nilaiLokal })); } catch (e) { /* abaikan */ }
-  }, [materi, assessment, nilaiLokal]);
-
   function tampilToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(''), 2200);
@@ -448,6 +568,8 @@ export default function GuruDashboard() {
   const kelasOpsi = ['Semua', ...kelasList.map((k) => k.nama)];
 
   const tugasSaya = tugasAll.filter((t) => !user || norm(t.guru) === norm(user.nama));
+  const materi = materiAll.filter((m) => !user || norm(m.guru) === norm(user.nama));
+  const assessment = assessmentAll.filter((a) => !user || norm(a.guru) === norm(user.nama));
   const tugasDipilih = tugasSaya.find((t) => t.id === filterTugasId) || tugasSaya[0] || null;
 
   // Baris status pengumpulan untuk tugas yang dipilih
@@ -493,8 +615,17 @@ export default function GuruDashboard() {
         setTugasAll((prev) => prev.filter((x) => x.id !== id));
         setPengumpulan((prev) => prev.filter((p) => p.tugasId !== id));
       }
-      if (kind === 'materi') setMateri((prev) => prev.filter((x) => x.id !== id));
-      if (kind === 'assessment') setAssessment((prev) => prev.filter((x) => x.id !== id));
+      if (kind === 'materi') {
+        await api(`/api/materi/${id}`, 'DELETE');
+        setMateriAll((prev) => prev.filter((x) => x.id !== id));
+      }
+      if (kind === 'assessment') {
+        await api(`/api/assessment/${id}`, 'DELETE');
+        const terkait = hasil.filter((h) => h.assessmentId === id);
+        await Promise.all(terkait.map((h) => api(`/api/hasil/${h.id}`, 'DELETE').catch(() => null)));
+        setAssessmentAll((prev) => prev.filter((x) => x.id !== id));
+        setHasil((prev) => prev.filter((h) => h.assessmentId !== id));
+      }
       tampilToast('Data berhasil dihapus.');
     } catch (e) {
       setError(e.message);
@@ -502,29 +633,109 @@ export default function GuruDashboard() {
     setModal(null);
   }
 
-  async function simpanNilaiTugas(p) {
-    const v = nilaiDraft[p.id];
-    if (v === undefined || v === '') return;
-    const n = Number(v);
-    if (isNaN(n) || n < 0 || n > 100) { setError('Nilai harus antara 0 sampai 100.'); return; }
+  async function simpanPeriksa(p, nilai, komentar) {
+    const saved = await api(`/api/pengumpulan/${p.id}`, 'PUT', { tugasId: p.tugasId, siswaId: p.siswaId, siswaNama: p.siswaNama, namaFile: p.namaFile, nilai, komentar });
+    setPengumpulan((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+    setError('');
+    tampilToast('Nilai dan komentar tersimpan.');
+  }
+
+  // ----- Materi & Assessment (database) -----
+  async function simpanMateri(data, file) {
+    if (!user) throw new Error('Data login tidak ditemukan. Silakan login ulang.');
+    const edit = modal && modal.edit;
+    let fileId = edit ? edit.fileId || '' : '';
+    let namaFile = edit ? edit.namaFile || '' : '';
+    if (file) {
+      const up = await uploadFile(file);
+      fileId = up.id;
+      namaFile = up.nama;
+    }
+    const payload = { ...data, fileId, namaFile };
+    if (edit) {
+      const saved = await api(`/api/materi/${edit.id}`, 'PUT', { ...payload, guru: edit.guru });
+      setMateriAll((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+    } else {
+      const saved = await api('/api/materi', 'POST', { ...payload, guru: user.nama });
+      setMateriAll((prev) => [...prev, saved]);
+    }
+    setModal(null);
+    tampilToast('Materi berhasil disimpan.');
+  }
+
+  async function simpanAssessment(data) {
+    if (!user) throw new Error('Data login tidak ditemukan. Silakan login ulang.');
+    const edit = modal && modal.edit;
+    if (edit) {
+      const saved = await api(`/api/assessment/${edit.id}`, 'PUT', { ...data, guru: edit.guru });
+      setAssessmentAll((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+    } else {
+      const saved = await api('/api/assessment', 'POST', { ...data, guru: user.nama });
+      setAssessmentAll((prev) => [...prev, saved]);
+    }
+    setModal(null);
+    tampilToast('Assessment berhasil disimpan.');
+  }
+
+  async function simpanNilaiHasil(h, n) {
+    const saved = await api(`/api/hasil/${h.id}`, 'PUT', { assessmentId: h.assessmentId, siswaId: h.siswaId, siswaNama: h.siswaNama, nilai: n, perluDinilai: false });
+    setHasil((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+    tampilToast('Nilai assessment tersimpan.');
+  }
+
+  // ----- Nilai (database) -----
+  const mapelNilaiOpsi = Array.from(new Set([mapelGuru, ...tugasSaya.map((t) => t.mapel), ...assessment.map((a) => a.mapel)]));
+  const mapelAktif = mapelNilai && mapelNilaiOpsi.includes(mapelNilai) ? mapelNilai : mapelGuru;
+  const kelasNilaiAktif = kelasNilai || (kelasList[0] && kelasList[0].nama) || '';
+  const siswaNilai = siswaList.filter((s) => norm(s.kelas) === norm(kelasNilaiAktif));
+
+  // Nilai otomatis dari tugas yang sudah dinilai dan hasil kuis / ulangan harian
+  function nilaiOtomatis(s, mapel) {
+    const idTugas = tugasSaya.filter((t) => t.mapel === mapel).map((t) => t.id);
+    const tv = pengumpulan.filter((p) => idTugas.includes(p.tugasId) && norm(p.siswaNama) === norm(s.nama) && p.nilai != null).map((p) => p.nilai);
+    const hv = (tipe) => hasil
+      .filter((h) => norm(h.siswaNama) === norm(s.nama) && h.nilai != null && assessment.some((a) => a.id === h.assessmentId && a.mapel === mapel && a.tipe === tipe))
+      .map((h) => h.nilai);
+    return { tugas: rataRata(tv), kuis: rataRata(hv('Kuis')), uh: rataRata(hv('Ulangan Harian')) };
+  }
+  const nilaiTersimpan = (s) => nilaiDb.find((n) => (n.siswaId === s.id || norm(n.siswaNama) === norm(s.nama)) && n.mapel === mapelAktif);
+  const ubahNilai = (id, field, val) => setNilaiEdit((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: val } }));
+  function nilaiEfektif(s) {
+    const auto = nilaiOtomatis(s, mapelAktif);
+    const db = nilaiTersimpan(s) || {};
+    const ed = nilaiEdit[s.id] || {};
+    const out = {};
+    ['tugas', 'kuis', 'uh'].forEach((f) => {
+      const manual = ed[f] !== undefined ? ed[f] : db[f];
+      out[f] = manual !== undefined && manual !== null && manual !== '' ? Number(manual) : auto[f];
+    });
+    return { out, auto, db, ed };
+  }
+  function hitungAkhir(out) {
+    const vals = [out.tugas, out.kuis, out.uh].filter((v) => v !== null && v !== undefined && !isNaN(v));
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : '-';
+  }
+  async function simpanSemuaNilai() {
+    if (!user) { setError('Data login tidak ditemukan. Silakan login ulang.'); return; }
     try {
-      const saved = await api(`/api/pengumpulan/${p.id}`, 'PUT', { tugasId: p.tugasId, siswaId: p.siswaId, siswaNama: p.siswaNama, namaFile: p.namaFile, nilai: n });
-      setPengumpulan((prev) => prev.map((x) => (x.id === saved.id ? saved : x)));
+      for (const s of siswaNilai) {
+        const ed = nilaiEdit[s.id];
+        if (!ed) continue;
+        const db = nilaiTersimpan(s);
+        const ambil = (f) => {
+          const v = ed[f] !== undefined ? ed[f] : db ? db[f] : null;
+          return v === '' || v === undefined || v === null ? null : Number(v);
+        };
+        const body = { siswaId: s.id, siswaNama: s.nama, kelas: s.kelas, mapel: mapelAktif, guru: user.nama, tugas: ambil('tugas'), kuis: ambil('kuis'), uh: ambil('uh') };
+        const saved = db ? await api(`/api/nilai/${db.id}`, 'PUT', body) : await api('/api/nilai', 'POST', body);
+        setNilaiDb((prev) => (db ? prev.map((x) => (x.id === saved.id ? saved : x)) : [...prev, saved]));
+      }
+      setNilaiEdit({});
       setError('');
-      tampilToast('Nilai tugas tersimpan.');
+      tampilToast('Nilai berhasil disimpan.');
     } catch (e) {
       setError(e.message);
     }
-  }
-
-  // ----- Nilai (lokal) -----
-  const kelasNilaiAktif = kelasNilai || (kelasList[0] && kelasList[0].nama) || '';
-  const siswaNilai = siswaList.filter((s) => norm(s.kelas) === norm(kelasNilaiAktif));
-  const ubahNilai = (id, field, val) => setNilaiLokal((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: val } }));
-  function hitungAkhir(n) {
-    const vals = [n.tugas, n.kuis, n.uh].filter((v) => v !== '' && v !== undefined && v !== null && !isNaN(v)).map(Number);
-    if (vals.length === 0) return '-';
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
   }
 
   function keluar() {
@@ -537,27 +748,21 @@ export default function GuruDashboard() {
     const tutup = () => setModal(null);
 
     if (modal.type === 'materi') {
-      return (
-        <MateriModal edit={modal.edit} kelasOpsi={kelasOpsi} defaultMapel={mapelGuru} onClose={tutup}
-          onSave={(d) => {
-            setMateri((prev) => (modal.edit ? prev.map((x) => (x.id === d.id ? d : x)) : [d, ...prev]));
-            tutup();
-            tampilToast('Materi berhasil disimpan.');
-          }} />
-      );
+      return <MateriModal edit={modal.edit} kelasOpsi={kelasOpsi} defaultMapel={mapelGuru} onClose={tutup} onSave={simpanMateri} />;
+    }
+    if (modal.type === 'hasil') {
+      const a = assessmentAll.find((x) => x.id === modal.id);
+      if (!a) return null;
+      return <HasilModal a={a} daftar={hasil.filter((h) => h.assessmentId === a.id)} onClose={tutup} onSave={simpanNilaiHasil} />;
+    }
+    if (modal.type === 'periksa') {
+      return <PeriksaModal pg={modal.pg} nama={modal.nama} tugas={modal.tugas} onClose={tutup} onSave={simpanPeriksa} />;
     }
     if (modal.type === 'tugas') {
       return <TugasModal edit={modal.edit} kelasOpsi={kelasOpsi} defaultMapel={mapelGuru} onClose={tutup} onSave={simpanTugas} />;
     }
     if (modal.type === 'assessment') {
-      return (
-        <AssessmentModal edit={modal.edit} kelasOpsi={kelasOpsi} defaultMapel={mapelGuru} onClose={tutup}
-          onSave={(d) => {
-            setAssessment((prev) => (modal.edit ? prev.map((x) => (x.id === d.id ? d : x)) : [d, ...prev]));
-            tutup();
-            tampilToast('Assessment berhasil disimpan.');
-          }} />
-      );
+      return <AssessmentModal edit={modal.edit} kelasOpsi={kelasOpsi} defaultMapel={mapelGuru} onClose={tutup} onSave={simpanAssessment} />;
     }
     if (modal.type === 'hapus') {
       return (
@@ -664,18 +869,18 @@ export default function GuruDashboard() {
               </div>
               <div className="panel">
                 <table>
-                  <thead><tr><th>Judul materi</th><th>Mata pelajaran</th><th>Kelas</th><th>Tanggal</th><th></th></tr></thead>
+                  <thead><tr><th>Judul materi</th><th>Mata pelajaran</th><th>Kelas</th><th>File</th><th>Tanggal</th><th></th></tr></thead>
                   <tbody>
                     {materi.map((m) => (
                       <tr key={m.id}>
-                        <td style={{ fontWeight: 600 }}>{m.judul}</td><td>{m.mapel}</td><td>{m.kelas}</td><td>{m.tanggal}</td>
+                        <td style={{ fontWeight: 600 }}>{m.judul}</td><td>{m.mapel}</td><td>{m.kelas}</td><td>{m.fileId ? <a href={`/api/berkas/${m.fileId}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tosca-600)', fontWeight: 600 }}>{m.namaFile || 'Buka'}</a> : '-'}</td><td>{fmtTanggal(m.tanggal)}</td>
                         <td><div className="row-actions">
                           <div className="icon-btn" title="Edit" onClick={() => setModal({ type: 'materi', edit: m })}><IconEdit /></div>
                           <div className="icon-btn danger" title="Hapus" onClick={() => setModal({ type: 'hapus', kind: 'materi', id: m.id })}><IconTrash /></div>
                         </div></td>
                       </tr>
                     ))}
-                    {materi.length === 0 && kosong(5, 'Belum ada materi.')}
+                    {materi.length === 0 && kosong(6, 'Belum ada materi.')}
                   </tbody>
                 </table>
               </div>
@@ -697,6 +902,7 @@ export default function GuruDashboard() {
                         <td style={{ fontWeight: 600 }}>{a.judul}</td><td>{a.mapel}</td><td>{a.kelas}</td><td>{a.tipe}</td>
                         <td>{a.jumlahSoal}</td><td>{a.totalPoin}</td><td>{a.durasi ? `${a.durasi} menit` : '-'}</td><td>{fmtDateOnly(a.deadlineDate)}</td>
                         <td><div className="row-actions">
+                          <button className="btn" onClick={() => setModal({ type: 'hasil', id: a.id })}>Hasil ({hasil.filter((h) => h.assessmentId === a.id).length})</button>
                           <div className="icon-btn" title="Edit" onClick={() => setModal({ type: 'assessment', edit: a })}><IconEdit /></div>
                           <div className="icon-btn danger" title="Hapus" onClick={() => setModal({ type: 'hapus', kind: 'assessment', id: a.id })}><IconTrash /></div>
                         </div></td>
@@ -740,27 +946,33 @@ export default function GuruDashboard() {
           {section === 'nilai' && (
             <section>
               <p className="page-title">Nilai</p>
-              <p className="page-sub">Masukkan nilai tugas, kuis, dan ulangan harian — nilai akhir terhitung otomatis (disimpan di browser ini)</p>
+              <p className="page-sub">Nilai tugas, kuis, dan ulangan harian terisi otomatis dari tugas yang sudah kamu nilai dan hasil assessment. Ketik angka untuk menimpa nilai otomatis.</p>
               <div className="panel">
                 <div className="panel-head">
                   <h2>Kelas</h2>
                   <select className="btn" style={{ cursor: 'pointer' }} value={kelasNilaiAktif} onChange={(e) => setKelasNilai(e.target.value)}>
                     {kelasList.map((k) => <option key={k.id}>{k.nama}</option>)}
                   </select>
-                  <button className="btn btn-primary" onClick={() => tampilToast('Nilai berhasil disimpan.')}>Simpan nilai</button>
+                  <select className="btn" style={{ cursor: 'pointer' }} value={mapelAktif} onChange={(e) => setMapelNilai(e.target.value)}>
+                    {mapelNilaiOpsi.map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                  <button className="btn btn-primary" onClick={simpanSemuaNilai}>Simpan nilai</button>
                 </div>
                 <table>
                   <thead><tr><th>Nama siswa</th><th>Tugas</th><th>Kuis</th><th>Ulangan harian</th><th>Nilai akhir</th></tr></thead>
                   <tbody>
                     {siswaNilai.map((s) => {
-                      const n = nilaiLokal[s.id] || { tugas: '', kuis: '', uh: '' };
+                      const { out, auto, db, ed } = nilaiEfektif(s);
                       return (
                         <tr key={s.id}>
                           <td style={{ fontWeight: 600 }}>{s.nama}</td>
                           {['tugas', 'kuis', 'uh'].map((f) => (
-                            <td key={f}><input className="nilai-input" type="number" min="0" max="100" value={n[f] ?? ''} onChange={(e) => ubahNilai(s.id, f, e.target.value)} /></td>
+                            <td key={f}><input className="nilai-input" type="number" min="0" max="100"
+                              value={ed[f] !== undefined ? ed[f] : (db[f] ?? '')}
+                              placeholder={auto[f] != null ? String(auto[f]) : '-'}
+                              onChange={(e) => ubahNilai(s.id, f, e.target.value)} /></td>
                           ))}
-                          <td style={{ fontWeight: 700, color: 'var(--tosca-800)' }}>{hitungAkhir(n)}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--tosca-800)' }}>{hitungAkhir(out)}</td>
                         </tr>
                       );
                     })}
@@ -783,7 +995,7 @@ export default function GuruDashboard() {
                   </select>
                 </div>
                 <table>
-                  <thead><tr><th>Nama siswa</th><th>Kelas</th><th>Status</th><th>Waktu kumpul</th><th>File</th><th>Nilai</th></tr></thead>
+                  <thead><tr><th>Nama siswa</th><th>Kelas</th><th>Status</th><th>Waktu kumpul</th><th>File</th><th>Nilai</th><th>Aksi</th></tr></thead>
                   <tbody>
                     {barisStatus.map((b, i) => (
                       <tr key={i}>
@@ -791,18 +1003,12 @@ export default function GuruDashboard() {
                         <td>{b.kelas}</td>
                         <td><Pill s={b.pg ? 'Sudah' : 'Belum'} /></td>
                         <td>{b.pg ? fmtWaktu(b.pg.dikumpulkanPada) : '-'}</td>
-                        <td>{b.pg ? (b.pg.namaFile || '-') : '-'}</td>
-                        <td>
-                          {b.pg ? (
-                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                              <input className="nilai-input" type="number" min="0" max="100" defaultValue={b.pg.nilai ?? ''} onChange={(e) => setNilaiDraft((d) => ({ ...d, [b.pg.id]: e.target.value }))} />
-                              <button className="btn" onClick={() => simpanNilaiTugas(b.pg)}>Simpan</button>
-                            </div>
-                          ) : '-'}
-                        </td>
+                        <td>{b.pg ? (b.pg.fileId ? <a href={`/api/berkas/${b.pg.fileId}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tosca-600)', fontWeight: 600 }}>{b.pg.namaFile || 'Buka file'}</a> : (b.pg.namaFile || '-')) : '-'}</td>
+                        <td>{b.pg ? (b.pg.nilai != null ? <b>{b.pg.nilai}</b> : <span style={{ color: 'var(--ink-soft)' }}>Belum dinilai</span>) : '-'}</td>
+                        <td>{b.pg ? <button className="btn btn-primary" onClick={() => setModal({ type: 'periksa', pg: b.pg, nama: b.nama, tugas: tugasDipilih })}>{b.pg.nilai != null ? 'Edit nilai' : 'Periksa & nilai'}</button> : '-'}</td>
                       </tr>
                     ))}
-                    {barisStatus.length === 0 && kosong(6, tugasDipilih ? 'Belum ada data.' : 'Belum ada tugas.')}
+                    {barisStatus.length === 0 && kosong(7, tugasDipilih ? 'Belum ada data.' : 'Belum ada tugas.')}
                   </tbody>
                 </table>
               </div>
