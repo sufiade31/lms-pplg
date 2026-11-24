@@ -200,6 +200,9 @@ function QuizModal({ a, onFinish, onCancel }) {
   );
 }
 
+// true = siswa tidak melihat nilai kuis & ulangan harian (hanya guru yang melihat). Ubah ke false untuk menampilkannya.
+const SEMBUNYIKAN_NILAI_ASESMEN = true;
+
 export default function StudentDashboard() {
   const router = useRouter();
   const [section, setSection] = useState('beranda');
@@ -300,8 +303,9 @@ export default function StudentDashboard() {
     const tugasN = pilih(db.tugas, tv);
     const kuisN = pilih(db.kuis, hv('Kuis'));
     const uhN = pilih(db.uh, hv('Ulangan Harian'));
+    if (SEMBUNYIKAN_NILAI_ASESMEN) return { mapel, tugas: tugasN, kuis: null, uh: null, rata: rataRata([tugasN]) };
     return { mapel, tugas: tugasN, kuis: kuisN, uh: uhN, rata: rataRata([tugasN, kuisN, uhN]) };
-  }).filter((r) => r.tugas !== null || r.kuis !== null || r.uh !== null);
+  }).filter((r) => (SEMBUNYIKAN_NILAI_ASESMEN ? r.tugas !== null : r.tugas !== null || r.kuis !== null || r.uh !== null));
   const fmtN = (v) => (v === null || v === undefined ? '-' : v);
 
   async function kumpulkanTugas(t, file) {
@@ -460,8 +464,12 @@ export default function StudentDashboard() {
       return (
         <Modal title="Jawaban terkirim" sub={modal.judul} onClose={tutup} actions={<button className="btn btn-primary" onClick={tutup}>Tutup</button>}>
           <p style={{ fontSize: 13, margin: 0 }}>
-            {modal.nilai !== null && <>Nilai pilihan ganda kamu: <b>{modal.nilai}</b>. </>}
-            {modal.adaEsai && 'Soal esai akan diperiksa guru, nilai akhir bisa berubah setelah diperiksa.'}
+            {SEMBUNYIKAN_NILAI_ASESMEN
+              ? 'Jawaban kamu sudah terkirim. Nilai akan diperiksa dan disampaikan oleh guru.'
+              : (<>
+                  {modal.nilai !== null && <>Nilai pilihan ganda kamu: <b>{modal.nilai}</b>. </>}
+                  {modal.adaEsai && 'Soal esai akan diperiksa guru, nilai akhir bisa berubah setelah diperiksa.'}
+                </>)}
           </p>
         </Modal>
       );
@@ -662,7 +670,7 @@ export default function StudentDashboard() {
                         <td>{a.mapel}</td>
                         <td>{a.tipe}</td>
                         <td>{a.deadlineDate ? fmtTanggal(a.deadlineDate) : '-'}</td>
-                        <td><Pill s={a.status} />{a.status === 'Selesai' && a.h && a.h.nilai != null && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> ({a.h.nilai})</span>}{a.status === 'Selesai' && a.h && a.h.perluDinilai && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> menunggu esai</span>}</td>
+                        <td><Pill s={a.status} />{!SEMBUNYIKAN_NILAI_ASESMEN && a.status === 'Selesai' && a.h && a.h.nilai != null && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> ({a.h.nilai})</span>}{!SEMBUNYIKAN_NILAI_ASESMEN && a.status === 'Selesai' && a.h && a.h.perluDinilai && <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> menunggu esai</span>}</td>
                         <td>
                           {a.status === 'Belum'
                             ? <button className="btn btn-primary" onClick={() => setModal({ type: 'asesInfo', id: a.id })}>Kerjakan</button>
@@ -700,22 +708,22 @@ export default function StudentDashboard() {
           {section === 'nilai' && (
             <section>
               <p className="page-title">Nilai</p>
-              <p className="page-sub">Rekap nilai tugas, kuis, dan ulangan harian per mata pelajaran</p>
+              <p className="page-sub">{SEMBUNYIKAN_NILAI_ASESMEN ? 'Rekap nilai tugas per mata pelajaran. Nilai kuis dan ulangan harian disampaikan langsung oleh guru.' : 'Rekap nilai tugas, kuis, dan ulangan harian per mata pelajaran'}</p>
               <div className="panel">
                 <table>
-                  <thead><tr><th>Mata pelajaran</th><th>Tugas</th><th>Kuis</th><th>Ulangan harian</th><th>Rata-rata</th></tr></thead>
+                  <thead><tr><th>Mata pelajaran</th><th>Tugas</th>{!SEMBUNYIKAN_NILAI_ASESMEN && <th>Kuis</th>}{!SEMBUNYIKAN_NILAI_ASESMEN && <th>Ulangan harian</th>}<th>{SEMBUNYIKAN_NILAI_ASESMEN ? 'Rata-rata tugas' : 'Rata-rata'}</th></tr></thead>
                   <tbody>
                     {nilaiRows.map((n) => (
                       <tr key={n.mapel}>
                         <td style={{ fontWeight: 600 }}>{n.mapel}</td>
                         <td>{fmtN(n.tugas)}</td>
-                        <td>{fmtN(n.kuis)}</td>
-                        <td>{fmtN(n.uh)}</td>
+                        {!SEMBUNYIKAN_NILAI_ASESMEN && <td>{fmtN(n.kuis)}</td>}
+                        {!SEMBUNYIKAN_NILAI_ASESMEN && <td>{fmtN(n.uh)}</td>}
                         <td style={{ fontWeight: 700, color: 'var(--tosca-700)' }}>{fmtN(n.rata)}</td>
                       </tr>
                     ))}
                     {!loading && nilaiRows.length === 0 && (
-                      <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 24 }}>Belum ada nilai.</td></tr>
+                      <tr><td colSpan={SEMBUNYIKAN_NILAI_ASESMEN ? 3 : 5} style={{ textAlign: 'center', color: 'var(--ink-faint)', padding: 24 }}>Belum ada nilai.</td></tr>
                     )}
                   </tbody>
                 </table>

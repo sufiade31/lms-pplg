@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { bacaSoalDariPdf } from '@/lib/soalPdf';
 import { useRouter } from 'next/navigation';
 
 // ====== Konstanta ======
@@ -405,6 +406,27 @@ function AssessmentModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [soal, setSoal] = useState(edit && edit.soal && edit.soal.length ? edit.soal.map((s) => ({ ...s, opsi: [...s.opsi, '', '', '', ''].slice(0, 4) })) : [SOAL_BARU()]);
   const [err, setErr] = useState('');
+  const [impor, setImpor] = useState({ loading: false, pesan: '', galat: '' });
+
+  // Baca soal dari file PDF lalu masukkan ke daftar soal (guru tetap bisa memeriksa dan mengubah)
+  async function imporPdf(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setImpor({ loading: true, pesan: '', galat: '' });
+    try {
+      const { soal: baru, info } = await bacaSoalDariPdf(file);
+      const masihKosong = soal.length === 1 && !soal[0].tanya.trim();
+      setSoal((prev) => (masihKosong ? baru : [...prev, ...baru]));
+      let pesan = `${baru.length} soal terbaca (${info.pg} pilihan ganda, ${info.esai} esai).`;
+      if (info.tanpaKunci > 0) pesan += ` ${info.tanpaKunci} soal belum ada kunci jawaban, pilih jawaban benarnya di bawah.`;
+      if (info.opsiLebih > 0) pesan += ` ${info.opsiLebih} soal punya lebih dari 4 opsi, hanya A sampai D yang dipakai.`;
+      pesan += ' Periksa dulu semua soal sebelum menyimpan.';
+      setImpor({ loading: false, pesan, galat: '' });
+    } catch (er) {
+      setImpor({ loading: false, pesan: '', galat: er.message });
+    }
+  }
 
   const ubahSoal = (i, patch) => setSoal((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   const ubahOpsi = (i, k, val) => setSoal((prev) => prev.map((s, idx) => (idx === i ? { ...s, opsi: s.opsi.map((o, kk) => (kk === k ? val : o)) } : s)));
@@ -456,6 +478,19 @@ function AssessmentModal({ edit, kelasOpsi, defaultMapel, onClose, onSave }) {
           <div className="field-row"><label>Waktu pengerjaan (menit)</label><input type="number" min="1" max="300" value={durasi} onChange={(e) => setDurasi(e.target.value)} placeholder="Contoh: 30" /></div>
         </div>
         <div className="field-row"><label>Tenggat</label><input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></div>
+
+        <div style={{ border: '1.5px dashed var(--tosca-600)', borderRadius: 10, padding: 14, marginBottom: 14, background: 'var(--tosca-50)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Punya soal dalam bentuk PDF?</div>
+          <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '0 0 10px', lineHeight: 1.5 }}>
+            Unggah di sini, soal dibaca otomatis lalu kamu periksa sebelum menyimpan. Pakai soal bernomor (1. 2. 3.) dengan opsi berhuruf (A. B. C. D.). Kunci jawaban boleh ditulis di bawah soal ("Kunci: B") atau di bagian "KUNCI JAWABAN" di akhir. PDF hasil scan atau foto tidak bisa dibaca.
+          </p>
+          <label className="btn btn-primary" style={{ cursor: impor.loading ? 'progress' : 'pointer', opacity: impor.loading ? 0.7 : 1 }}>
+            {impor.loading ? 'Membaca PDF...' : 'Pilih PDF soal'}
+            <input type="file" accept="application/pdf,.pdf" onChange={imporPdf} disabled={impor.loading} style={{ display: 'none' }} />
+          </label>
+          {impor.pesan && <p style={{ fontSize: 12.5, color: 'var(--tosca-800)', margin: '10px 0 0', lineHeight: 1.5 }}>{impor.pesan}</p>}
+          {impor.galat && <p style={{ fontSize: 12.5, color: 'var(--coral-700)', margin: '10px 0 0', lineHeight: 1.5 }}>{impor.galat}</p>}
+        </div>
 
         {soal.map((s, i) => (
           <div className="soal-card" key={i}>
